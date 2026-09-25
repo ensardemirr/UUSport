@@ -1,0 +1,13 @@
+{
+  "files.encoding": "utf8",
+  "files.eol": "\r\n",
+  "editor.formatOnSave": false,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+  "files.exclude": {
+    "**/bin": true,
+    "**/obj": true,
+    "**/node_modules": true
+  }
+}

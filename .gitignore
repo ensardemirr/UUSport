@@ -1,0 +1,61 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+*.pdb
+
+# Node.js
+node_modules/
+dist/
+build/
+.next/
+.expo/
+
+# Ortam ve gizli bilgiler
+.env
+.env.*
+!.env.example
+*.key
+*.pfx
+secrets.json
+
+# Veritabanı ve geçici çıktılar
+*.bak
+*.dump
+*.sql.gz
+logs/
+temp/
+tmp/
+
+# Gercek/canli veri ve yerel aktarim alanlari
+data/private/
+data/incoming/
+data/live/
+data/exports/
+uu sport ltd/
+*.pgpass
+pgpass.conf
+
+# Uretilen release ve canli yedek paketleri
+deployment/releases/
+deployment/backups/
+
+# IDE
+.vs/
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# İşletim sistemi
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Kurulum dosyaları
+tools/installers/*
+!tools/installers/.gitkeep
+
+# Obsidian yerel kasa ayarlari
+.obsidian/

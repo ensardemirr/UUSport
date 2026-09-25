@@ -1,0 +1,1414 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>UU Sport — Cari Hesap Taslağı</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --navy-950: #071a2f;
+      --navy-900: #0b2340;
+      --navy-800: #12375e;
+      --blue-700: #075dc7;
+      --blue-600: #0a6de0;
+      --blue-100: #eaf3ff;
+      --ink-950: #142033;
+      --ink-700: #46546a;
+      --ink-500: #68758a;
+      --line: #dce3ec;
+      --surface: #ffffff;
+      --surface-2: #f5f7fa;
+      --surface-3: #edf1f6;
+      --green-700: #137044;
+      --green-100: #e6f5ec;
+      --amber-800: #815200;
+      --amber-100: #fff2d8;
+      --red-700: #b3261e;
+      --red-100: #fdecea;
+      --shadow: 0 12px 36px rgba(20, 32, 51, .09);
+      --radius-lg: 18px;
+      --radius-md: 12px;
+      --radius-sm: 8px;
+      font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    [hidden] { display: none !important; }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      background: var(--surface-2);
+      color: var(--ink-950);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    button, input { font: inherit; }
+
+    button {
+      min-height: 40px;
+      border: 0;
+      cursor: pointer;
+    }
+
+    button:focus-visible,
+    input:focus-visible,
+    [tabindex]:focus-visible {
+      outline: 3px solid rgba(10, 109, 224, .28);
+      outline-offset: 2px;
+    }
+
+    .app-shell {
+      display: grid;
+      grid-template-columns: 244px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: 22px 16px;
+      background: linear-gradient(180deg, var(--navy-950), var(--navy-900));
+      color: #fff;
+      overflow-y: auto;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 0 8px 24px;
+    }
+
+    .brand-mark {
+      display: grid;
+      width: 38px;
+      height: 38px;
+      place-items: center;
+      border-radius: 11px;
+      background: #fff;
+      color: var(--navy-950);
+      font-weight: 800;
+      letter-spacing: -.04em;
+    }
+
+    .brand-name {
+      font-size: 17px;
+      font-weight: 750;
+      letter-spacing: -.02em;
+    }
+
+    .brand-subtitle {
+      color: #b8c7d9;
+      font-size: 11px;
+    }
+
+    .nav-label {
+      margin: 12px 10px 8px;
+      color: #8fa4bc;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .nav {
+      display: grid;
+      gap: 4px;
+    }
+
+    .nav a {
+      display: flex;
+      min-height: 42px;
+      align-items: center;
+      gap: 11px;
+      padding: 8px 11px;
+      border-radius: 10px;
+      color: #d9e3ef;
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .nav a:hover { background: rgba(255, 255, 255, .08); }
+    .nav a.active { background: #fff; color: var(--navy-950); }
+
+    .nav-icon {
+      display: inline-grid;
+      width: 22px;
+      place-items: center;
+      font-size: 15px;
+    }
+
+    .nav-badge {
+      margin-left: auto;
+      min-width: 24px;
+      padding: 2px 7px;
+      border-radius: 99px;
+      background: #ffdf9f;
+      color: #4c3100;
+      font-size: 11px;
+      font-weight: 800;
+      text-align: center;
+    }
+
+    .workspace { min-width: 0; }
+
+    .topbar {
+      display: flex;
+      min-height: 64px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 10px 28px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, .96);
+    }
+
+    .crumbs { color: var(--ink-500); }
+    .crumbs strong { color: var(--ink-950); }
+
+    .user-area {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .environment {
+      padding: 5px 9px;
+      border: 1px solid #b8d3f4;
+      border-radius: 99px;
+      color: #07549f;
+      background: #eef6ff;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .avatar {
+      display: grid;
+      width: 34px;
+      height: 34px;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--navy-900);
+      color: #fff;
+      font-weight: 750;
+    }
+
+    main {
+      width: min(1480px, 100%);
+      margin: 0 auto;
+      padding: 28px;
+    }
+
+    .page-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 22px;
+    }
+
+    .eyebrow {
+      margin: 0 0 4px;
+      color: var(--blue-700);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(25px, 3vw, 34px);
+      line-height: 1.16;
+      letter-spacing: -.035em;
+    }
+
+    .customer-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 14px;
+      margin-top: 9px;
+      color: var(--ink-700);
+    }
+
+    .customer-meta span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .action-group {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 9px;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 9px 14px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--surface);
+      color: var(--ink-950);
+      font-weight: 700;
+      box-shadow: 0 1px 2px rgba(20, 32, 51, .04);
+    }
+
+    .button:hover { background: var(--surface-3); }
+
+    .button.primary {
+      border-color: var(--blue-700);
+      background: var(--blue-700);
+      color: #fff;
+    }
+
+    .button.primary:hover { background: #064fa9; }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(180px, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .summary-card {
+      min-height: 120px;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      background: var(--surface);
+      box-shadow: 0 2px 8px rgba(20, 32, 51, .035);
+    }
+
+    .summary-card.attention {
+      border-color: #efc268;
+      background: linear-gradient(180deg, #fffaf0, #fff);
+    }
+
+    .summary-label {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--ink-700);
+      font-size: 12px;
+      font-weight: 750;
+    }
+
+    .summary-value {
+      margin-top: 13px;
+      font-size: 25px;
+      font-weight: 800;
+      letter-spacing: -.025em;
+    }
+
+    .summary-note {
+      margin-top: 5px;
+      color: var(--ink-500);
+      font-size: 12px;
+    }
+
+    .content-card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .content-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .view-tabs {
+      display: inline-flex;
+      gap: 3px;
+      padding: 4px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--surface-2);
+    }
+
+    .view-tab {
+      min-height: 36px;
+      padding: 7px 13px;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--ink-700);
+      font-weight: 750;
+      white-space: nowrap;
+    }
+
+    .view-tab:hover { background: #fff; }
+
+    .view-tab[aria-selected="true"] {
+      background: #fff;
+      color: var(--blue-700);
+      box-shadow: 0 1px 4px rgba(20, 32, 51, .13);
+    }
+
+    .tab-count {
+      display: inline-block;
+      min-width: 21px;
+      margin-left: 5px;
+      padding: 1px 5px;
+      border-radius: 99px;
+      background: var(--surface-3);
+      color: var(--ink-700);
+      font-size: 11px;
+    }
+
+    .view-tab[aria-selected="true"] .tab-count {
+      background: var(--blue-100);
+      color: var(--blue-700);
+    }
+
+    .tools {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .search {
+      min-height: 40px;
+      width: 230px;
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: #fff;
+      color: var(--ink-950);
+    }
+
+    .table-wrap { overflow-x: auto; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-variant-numeric: tabular-nums;
+    }
+
+    thead th {
+      padding: 11px 14px;
+      border-bottom: 1px solid var(--line);
+      background: #fafbfd;
+      color: var(--ink-500);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .04em;
+      text-align: left;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    tbody td {
+      padding: 14px;
+      border-bottom: 1px solid #edf0f4;
+      vertical-align: middle;
+    }
+
+    tbody tr {
+      transition: background .15s ease;
+      cursor: pointer;
+    }
+
+    tbody tr:hover,
+    tbody tr.selected { background: #f6faff; }
+
+    tbody tr:last-child td { border-bottom: 0; }
+
+    .transaction {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 165px;
+    }
+
+    .transaction-icon {
+      display: grid;
+      width: 34px;
+      height: 34px;
+      flex: 0 0 34px;
+      place-items: center;
+      border-radius: 9px;
+      background: var(--surface-3);
+      color: var(--navy-800);
+      font-weight: 800;
+    }
+
+    .transaction strong { display: block; font-size: 13px; }
+    .transaction small { color: var(--ink-500); }
+
+    .amount {
+      text-align: right;
+      white-space: nowrap;
+      font-weight: 750;
+    }
+
+    .amount.credit { color: var(--green-700); }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 28px;
+      padding: 4px 8px;
+      border-radius: 99px;
+      font-size: 11px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .status::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .status.pending { color: var(--amber-800); background: var(--amber-100); }
+    .status.documented { color: var(--green-700); background: var(--green-100); }
+    .status.partial { color: var(--blue-700); background: var(--blue-100); }
+    .status.error { color: var(--red-700); background: var(--red-100); }
+
+    .table-footer {
+      display: flex;
+      min-height: 54px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 10px 18px;
+      border-top: 1px solid var(--line);
+      background: #fafbfd;
+      color: var(--ink-700);
+      font-size: 12px;
+    }
+
+    .table-total {
+      color: var(--ink-950);
+      font-weight: 800;
+    }
+
+    .task-strip {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 18px;
+      margin-top: 18px;
+      padding: 18px;
+      border: 1px solid #efc268;
+      border-radius: var(--radius-md);
+      background: #fffaf0;
+    }
+
+    .task-strip h2 {
+      margin: 0 0 3px;
+      font-size: 16px;
+    }
+
+    .task-strip p {
+      margin: 0;
+      color: #614b20;
+    }
+
+    .mockup-note {
+      margin: 14px 4px 0;
+      color: var(--ink-500);
+      font-size: 12px;
+    }
+
+    dialog {
+      width: min(560px, calc(100% - 32px));
+      padding: 0;
+      border: 0;
+      border-radius: 18px;
+      background: var(--surface);
+      color: var(--ink-950);
+      box-shadow: 0 24px 80px rgba(7, 26, 47, .25);
+    }
+
+    dialog::backdrop { background: rgba(7, 26, 47, .55); }
+
+    .dialog-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 20px 22px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .dialog-head h2 { margin: 0; font-size: 20px; }
+    .dialog-head p { margin: 4px 0 0; color: var(--ink-500); }
+
+    .icon-button {
+      width: 40px;
+      min-width: 40px;
+      border-radius: 9px;
+      background: var(--surface-2);
+      color: var(--ink-700);
+      font-size: 18px;
+    }
+
+    .dialog-body { padding: 20px 22px; }
+
+    dialog.dialog-wide { width: min(780px, calc(100% - 32px)); }
+
+    .choice-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      padding: 5px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--surface-2);
+    }
+
+    .choice-tab {
+      min-height: 42px;
+      border-radius: 9px;
+      background: transparent;
+      color: var(--ink-700);
+      font-weight: 800;
+    }
+
+    .choice-tab[aria-selected="true"] {
+      background: #fff;
+      color: var(--blue-700);
+      box-shadow: 0 1px 4px rgba(20, 32, 51, .13);
+    }
+
+    .catalog-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.25fr) minmax(240px, .75fr);
+      gap: 18px;
+      margin-top: 16px;
+    }
+
+    .catalog-list {
+      display: grid;
+      gap: 8px;
+      margin: 10px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .catalog-item {
+      display: flex;
+      width: 100%;
+      min-height: 58px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+      color: var(--ink-950);
+      text-align: left;
+    }
+
+    .catalog-item:hover { background: #f7faff; }
+
+    .catalog-item[aria-pressed="true"] {
+      border-color: #8dbcf1;
+      background: var(--blue-100);
+      box-shadow: 0 0 0 2px rgba(10, 109, 224, .1);
+    }
+
+    .catalog-item strong,
+    .catalog-item small { display: block; }
+
+    .catalog-item small { color: var(--ink-500); }
+
+    .panel {
+      padding: 15px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fafbfd;
+    }
+
+    .panel h3 {
+      margin: 0 0 12px;
+      font-size: 14px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .field {
+      display: grid;
+      gap: 6px;
+      color: var(--ink-700);
+      font-size: 12px;
+      font-weight: 750;
+    }
+
+    .field.full { grid-column: 1 / -1; }
+
+    .input {
+      width: 100%;
+      min-height: 42px;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: #fff;
+      color: var(--ink-950);
+    }
+
+    select.input { cursor: pointer; }
+
+    .permission-note {
+      margin: 8px 0 0;
+      color: var(--ink-500);
+      font-size: 11px;
+    }
+
+    .permission-note.error { color: var(--red-700); font-weight: 750; }
+
+    .calculation {
+      display: grid;
+      gap: 7px;
+      margin-top: 14px;
+      padding-top: 13px;
+      border-top: 1px solid var(--line);
+    }
+
+    .calculation div {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .calculation .grand-total {
+      padding-top: 7px;
+      border-top: 1px dashed #c7d0dc;
+      font-size: 16px;
+      font-weight: 850;
+    }
+
+    .switch-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 11px;
+      margin-top: 16px;
+      padding: 14px;
+      border: 1px solid #b8d3f4;
+      border-radius: 11px;
+      background: #f1f7ff;
+    }
+
+    .switch-row input {
+      width: 20px;
+      height: 20px;
+      flex: 0 0 20px;
+      margin: 1px 0 0;
+      accent-color: var(--blue-700);
+    }
+
+    .switch-row strong,
+    .switch-row small { display: block; }
+
+    .switch-row small {
+      margin-top: 3px;
+      color: var(--ink-700);
+    }
+
+    .toast {
+      position: fixed;
+      right: 24px;
+      bottom: 24px;
+      z-index: 20;
+      display: none;
+      max-width: 420px;
+      padding: 14px 16px;
+      border-radius: 12px;
+      background: var(--navy-950);
+      color: #fff;
+      box-shadow: var(--shadow);
+      font-weight: 700;
+    }
+
+    .toast.show { display: block; }
+
+    .selection-list {
+      display: grid;
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .selection-list li {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 13px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+    }
+
+    .selection-list strong { display: block; }
+    .selection-list small { color: var(--ink-500); }
+
+    .dialog-total {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--line);
+      font-size: 16px;
+      font-weight: 800;
+    }
+
+    .dialog-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 9px;
+      padding: 16px 22px 20px;
+      border-top: 1px solid var(--line);
+    }
+
+    .empty-state {
+      display: none;
+      padding: 50px 20px;
+      text-align: center;
+      color: var(--ink-500);
+    }
+
+    @media (max-width: 1060px) {
+      .app-shell { grid-template-columns: 80px minmax(0, 1fr); }
+      .sidebar { padding-inline: 12px; }
+      .brand { justify-content: center; padding-inline: 0; }
+      .brand-copy, .nav-label, .nav-text, .nav-badge { display: none; }
+      .nav a { justify-content: center; }
+      .summary-grid { grid-template-columns: repeat(2, minmax(180px, 1fr)); }
+      .content-toolbar { align-items: stretch; flex-direction: column; }
+      .tools { justify-content: space-between; }
+      .search { width: min(360px, 100%); flex: 1; }
+    }
+
+    @media (max-width: 720px) {
+      .app-shell { display: block; }
+      .sidebar { display: none; }
+      .topbar { padding: 10px 16px; }
+      main { padding: 20px 14px 28px; }
+      .page-head { flex-direction: column; }
+      .action-group { width: 100%; justify-content: stretch; }
+      .action-group .button { flex: 1; }
+      .summary-grid { grid-template-columns: 1fr; }
+      .view-tabs { width: 100%; overflow-x: auto; }
+      .view-tab { flex: 1; }
+      .tools { align-items: stretch; flex-direction: column; }
+      .search { width: 100%; }
+      .task-strip { grid-template-columns: 1fr; }
+      .task-strip .button { width: 100%; }
+      .catalog-layout { grid-template-columns: 1fr; }
+      .environment { display: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { scroll-behavior: auto !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Ana menü">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">UU</div>
+        <div class="brand-copy">
+          <div class="brand-name">UU Sport</div>
+          <div class="brand-subtitle">Yönetim Platformu</div>
+        </div>
+      </div>
+
+      <div class="nav-label">Operasyon</div>
+      <nav class="nav">
+        <a href="#"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-text">Genel Bakış</span></a>
+        <a href="#" class="active" aria-current="page"><span class="nav-icon" aria-hidden="true">◎</span><span class="nav-text">Cariler</span></a>
+        <a href="#"><span class="nav-icon" aria-hidden="true">₺</span><span class="nav-text">Tahsilat</span></a>
+        <a href="#"><span class="nav-icon" aria-hidden="true">!</span><span class="nav-text">Muhasebe Bekleyen</span><span class="nav-badge">3</span></a>
+        <a href="#"><span class="nav-icon" aria-hidden="true">▣</span><span class="nav-text">Stok</span></a>
+      </nav>
+
+      <div class="nav-label">Finans</div>
+      <nav class="nav">
+        <a href="#"><span class="nav-icon" aria-hidden="true">▤</span><span class="nav-text">Kasa &amp; Banka</span></a>
+        <a href="#"><span class="nav-icon" aria-hidden="true">↗</span><span class="nav-text">Raporlar</span></a>
+      </nav>
+    </aside>
+
+    <section class="workspace">
+      <header class="topbar">
+        <div class="crumbs">Cariler / <strong>Cari Detayı</strong></div>
+        <div class="user-area">
+          <span class="environment">TASLAK • SENTETİK VERİ</span>
+          <span class="avatar" aria-label="Muhasebe kullanıcısı">MU</span>
+        </div>
+      </header>
+
+      <main>
+        <div class="page-head">
+          <div>
+            <p class="eyebrow">Cari Hesap</p>
+            <h1>Örnek Veli 001</h1>
+            <div class="customer-meta">
+              <span><strong>CAR-0001</strong></span>
+              <span>•</span>
+              <span>2 bağlı sporcu</span>
+              <span>•</span>
+              <span>Son işlem: 23 Eyl 2026</span>
+            </div>
+          </div>
+          <div class="action-group" aria-label="Cari işlemleri">
+            <button class="button" type="button" data-open-issue>＋ Stok veya Hizmet Çıkışı</button>
+            <button class="button primary" type="button" data-open-payment>＋ Tahsilat Al</button>
+          </div>
+        </div>
+
+        <section class="summary-grid" aria-label="Cari özeti">
+          <article class="summary-card">
+            <div class="summary-label">Toplam Cari Bakiye</div>
+            <div class="summary-value">₺8.300,00</div>
+            <div class="summary-note">Müşteri avansı</div>
+          </article>
+          <article class="summary-card">
+            <div class="summary-label">Belgeli / Resmî Bakiye</div>
+            <div class="summary-value">₺0,00</div>
+            <div class="summary-note">Fatura ve eşleşen tahsilatlar</div>
+          </article>
+          <article class="summary-card attention">
+            <div class="summary-label">● Muhasebeye Bekleyen Satış</div>
+            <div class="summary-value">₺3.700,00</div>
+            <div class="summary-note">2 kalem • En eski 0 gün</div>
+          </article>
+          <article class="summary-card attention">
+            <div class="summary-label">● Dağıtılmamış Tahsilat</div>
+            <div class="summary-value">₺12.000,00</div>
+            <div class="summary-note">1 Visa/POS işlemi</div>
+          </article>
+        </section>
+
+        <section class="content-card" aria-labelledby="movements-title">
+          <div class="content-toolbar">
+            <div class="view-tabs" role="tablist" aria-label="Cari görünümü">
+              <button class="view-tab" role="tab" aria-selected="true" data-filter="all" type="button">Toplam <span class="tab-count">5</span></button>
+              <button class="view-tab" role="tab" aria-selected="false" data-filter="official" type="button">Belgeli / Resmî <span class="tab-count">2</span></button>
+              <button class="view-tab" role="tab" aria-selected="false" data-filter="pending" type="button">Muhasebe Bekleyen <span class="tab-count">3</span></button>
+            </div>
+            <div class="tools">
+              <label>
+                <span class="sr-only" hidden>Hareketlerde ara</span>
+                <input class="search" type="search" placeholder="Hareketlerde ara…" aria-label="Hareketlerde ara">
+              </label>
+              <button class="button" type="button">Filtrele</button>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table aria-label="Cari hareketleri">
+              <thead>
+                <tr>
+                  <th>Tarih</th>
+                  <th>İşlem</th>
+                  <th>Belge / Referans</th>
+                  <th>Açıklama</th>
+                  <th style="text-align:right">Borç</th>
+                  <th style="text-align:right">Alacak</th>
+                  <th>Belge Durumu</th>
+                </tr>
+              </thead>
+              <tbody id="transactionRows">
+                <tr data-scope="pending" tabindex="0">
+                  <td>23 Eyl 2026</td>
+                  <td>
+                    <div class="transaction">
+                      <span class="transaction-icon" aria-hidden="true">₺</span>
+                      <span><strong>Tahsilat</strong><small>Visa / POS</small></span>
+                    </div>
+                  </td>
+                  <td>POS-260923-014</td>
+                  <td>Faturaya dağıtılmamış tahsilat</td>
+                  <td class="amount">—</td>
+                  <td class="amount credit">₺12.000,00</td>
+                  <td><span class="status pending">Muhasebe bekliyor</span></td>
+                </tr>
+                <tr data-scope="pending" tabindex="0">
+                  <td>23 Eyl 2026</td>
+                  <td>
+                    <div class="transaction">
+                      <span class="transaction-icon" aria-hidden="true">▣</span>
+                      <span><strong>Stok Çıkışı</strong><small>Merkez depo</small></span>
+                    </div>
+                  </td>
+                  <td>STK-000184</td>
+                  <td>Forma seti • 1 adet</td>
+                  <td class="amount">₺2.500,00</td>
+                  <td class="amount">—</td>
+                  <td><span class="status pending">Muhasebe bekliyor</span></td>
+                </tr>
+                <tr data-scope="pending" tabindex="0">
+                  <td>23 Eyl 2026</td>
+                  <td>
+                    <div class="transaction">
+                      <span class="transaction-icon" aria-hidden="true">V</span>
+                      <span><strong>Hizmet</strong><small>Lisans işlemi</small></span>
+                    </div>
+                  </td>
+                  <td>HZM-000072</td>
+                  <td>Sporcu lisans / vize bedeli</td>
+                  <td class="amount">₺1.200,00</td>
+                  <td class="amount">—</td>
+                  <td><span class="status pending">Muhasebe bekliyor</span></td>
+                </tr>
+                <tr data-scope="official" tabindex="0">
+                  <td>05 Eyl 2026</td>
+                  <td>
+                    <div class="transaction">
+                      <span class="transaction-icon" aria-hidden="true">F</span>
+                      <span><strong>e-Arşiv Fatura</strong><small>Hizmet satışı</small></span>
+                    </div>
+                  </td>
+                  <td>EAR-2026-00041</td>
+                  <td>Aylık futbol eğitim paketi</td>
+                  <td class="amount">₺7.500,00</td>
+                  <td class="amount">—</td>
+                  <td><span class="status documented">Belgelendi</span></td>
+                </tr>
+                <tr data-scope="official" tabindex="0">
+                  <td>05 Eyl 2026</td>
+                  <td>
+                    <div class="transaction">
+                      <span class="transaction-icon" aria-hidden="true">↙</span>
+                      <span><strong>Tahsilat</strong><small>Havale / EFT</small></span>
+                    </div>
+                  </td>
+                  <td>BNK-20260905-08</td>
+                  <td>EAR-2026-00041 faturasına dağıtıldı</td>
+                  <td class="amount">—</td>
+                  <td class="amount credit">₺7.500,00</td>
+                  <td><span class="status documented">Eşleştirildi</span></td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="empty-state" id="emptyState">Bu filtrede hareket bulunamadı.</div>
+          </div>
+
+          <div class="table-footer">
+            <span id="rowSummary">5 hareket gösteriliyor</span>
+            <span class="table-total" id="balanceSummary">Toplam bakiye: ₺8.300,00 avans</span>
+          </div>
+        </section>
+
+        <section class="task-strip" aria-label="Bekleyen görev">
+          <div>
+            <h2>Bugün tamamlanması gereken 3 işlem var</h2>
+            <p>₺3.700,00 satış ve ₺12.000,00 POS tahsilatı muhasebe işlemi bekliyor.</p>
+          </div>
+          <button class="button primary" type="button" data-show-pending>Bekleyenleri Gör</button>
+        </section>
+
+        <p class="mockup-note">Bu ekran bir taslaktır. Tüm kişi ve işlem bilgileri sentetiktir; gerçek müşteri verisi içermez.</p>
+      </main>
+    </section>
+  </div>
+
+  <dialog id="issueDialog" class="dialog-wide" aria-labelledby="issueDialogTitle">
+    <div class="dialog-head">
+      <div>
+        <h2 id="issueDialogTitle">Stok veya Hizmet Çıkışı</h2>
+        <p>Çıkış türünü ve kalemi seçin; miktar, fiyat ve indirimi kontrol edin.</p>
+      </div>
+      <button class="icon-button" type="button" data-close="issueDialog" aria-label="Pencereyi kapat">×</button>
+    </div>
+    <div class="dialog-body">
+      <div class="choice-tabs" role="tablist" aria-label="Çıkış türü">
+        <button class="choice-tab" type="button" role="tab" aria-selected="true" data-issue-type="stock">Stok</button>
+        <button class="choice-tab" type="button" role="tab" aria-selected="false" data-issue-type="service">Hizmet</button>
+      </div>
+
+      <div class="catalog-layout">
+        <section>
+          <label class="field full">
+            <span id="catalogSearchLabel">Stoklarda ara</span>
+            <input class="input" id="catalogSearch" type="search" placeholder="Ürün adı veya kodu">
+          </label>
+          <div class="catalog-list" id="stockCatalog">
+            <button class="catalog-item" type="button" aria-pressed="true" data-name="Forma seti" data-price="2500">
+              <span><strong>Forma seti</strong><small>STK-001 • Mevcut: 24</small></span>
+              <strong>₺2.500,00</strong>
+            </button>
+            <button class="catalog-item" type="button" aria-pressed="false" data-name="Antrenman eşofmanı" data-price="3200">
+              <span><strong>Antrenman eşofmanı</strong><small>STK-002 • Mevcut: 11</small></span>
+              <strong>₺3.200,00</strong>
+            </button>
+            <button class="catalog-item" type="button" aria-pressed="false" data-name="Futbol çorabı" data-price="350">
+              <span><strong>Futbol çorabı</strong><small>STK-003 • Mevcut: 46</small></span>
+              <strong>₺350,00</strong>
+            </button>
+          </div>
+          <div class="catalog-list" id="serviceCatalog" hidden>
+            <button class="catalog-item" type="button" aria-pressed="true" data-name="Sporcu lisans / vize bedeli" data-price="1200">
+              <span><strong>Sporcu lisans / vize bedeli</strong><small>HZM-001 • Hizmet</small></span>
+              <strong>₺1.200,00</strong>
+            </button>
+            <button class="catalog-item" type="button" aria-pressed="false" data-name="Özel ders" data-price="1800">
+              <span><strong>Özel ders</strong><small>HZM-002 • Seans</small></span>
+              <strong>₺1.800,00</strong>
+            </button>
+            <button class="catalog-item" type="button" aria-pressed="false" data-name="Kamp / turnuva katılımı" data-price="4500">
+              <span><strong>Kamp / turnuva katılımı</strong><small>HZM-003 • Organizasyon</small></span>
+              <strong>₺4.500,00</strong>
+            </button>
+          </div>
+        </section>
+
+        <section class="panel" aria-label="Çıkış bilgileri">
+          <h3 id="selectedItemName">Forma seti</h3>
+          <div class="form-grid">
+            <label class="field">
+              <span>Adet / Miktar</span>
+              <input class="input" id="issueQuantity" type="number" min="1" step="1" value="1">
+            </label>
+            <label class="field">
+              <span>Birim fiyat</span>
+              <input class="input" id="issuePrice" type="number" min="0" step="0.01" value="2500">
+            </label>
+            <label class="field full">
+              <span>İskonto (%)</span>
+              <input class="input" id="issueDiscount" type="number" min="0" max="10" step="0.1" value="0">
+            </label>
+          </div>
+          <p class="permission-note" id="discountPermission">Bu kullanıcının iskonto sınırı: %10</p>
+          <div class="calculation">
+            <div><span>Ara toplam</span><strong id="issueSubtotal">₺2.500,00</strong></div>
+            <div><span>İskonto</span><strong id="issueDiscountAmount">₺0,00</strong></div>
+            <div class="grand-total"><span>Net tutar</span><span id="issueNet">₺2.500,00</span></div>
+          </div>
+        </section>
+      </div>
+
+      <label class="switch-row">
+        <input id="officialIssue" type="checkbox">
+        <span>
+          <strong>Resmî çıkış oluştur</strong>
+          <small>Açıksa fatura önizleme ekranı gelir ve onaydan sonra yalnızca taslak fatura kaydedilir. Kapalıysa çıkış kaydedilir ve Muhasebe Bekleyen listesine gönderilir.</small>
+        </span>
+      </label>
+    </div>
+    <div class="dialog-actions">
+      <button class="button" type="button" data-close="issueDialog">Vazgeç</button>
+      <button class="button primary" id="saveIssueButton" type="button">Çıkışı Kaydet</button>
+    </div>
+  </dialog>
+
+  <dialog id="paymentDialog" aria-labelledby="paymentDialogTitle">
+    <div class="dialog-head">
+      <div>
+        <h2 id="paymentDialogTitle">Tahsilat Al</h2>
+        <p>Ödeme bilgilerini girin ve muhasebe işleminin nasıl ilerleyeceğini seçin.</p>
+      </div>
+      <button class="icon-button" type="button" data-close="paymentDialog" aria-label="Pencereyi kapat">×</button>
+    </div>
+    <div class="dialog-body">
+      <div class="form-grid">
+        <label class="field">
+          <span>Ödeme aracı</span>
+          <select class="input" id="paymentMethod">
+            <option>Visa / POS</option>
+            <option>Nakit</option>
+            <option>Havale / EFT</option>
+            <option>Online ödeme</option>
+            <option>Çek</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Tutar</span>
+          <input class="input" id="paymentAmount" type="number" min="0.01" step="0.01" value="12000">
+        </label>
+        <label class="field full">
+          <span>Referans / Açıklama</span>
+          <input class="input" type="text" value="POS-260923-014">
+        </label>
+      </div>
+      <label class="switch-row">
+        <input id="officialPayment" type="checkbox">
+        <span>
+          <strong>Resmî işlem olarak devam et</strong>
+          <small>Açıksa fatura veya mevcut belgeyle eşleştirme önizlemesi açılır. Kapalıysa tahsilat kaydedilir ve Muhasebe Bekleyen listesine gönderilir.</small>
+        </span>
+      </label>
+    </div>
+    <div class="dialog-actions">
+      <button class="button" type="button" data-close="paymentDialog">Vazgeç</button>
+      <button class="button primary" id="savePaymentButton" type="button">Tahsilatı Kaydet</button>
+    </div>
+  </dialog>
+
+  <dialog id="invoiceDialog" aria-labelledby="invoiceDialogTitle">
+    <div class="dialog-head">
+      <div>
+        <h2 id="invoiceDialogTitle">Fatura Taslağı Önizlemesi</h2>
+        <p id="invoiceDialogSubtitle">Resmî çıkış seçildi. Taslak kaydedilmeden önce son kontrolü yapın.</p>
+      </div>
+      <button class="icon-button" type="button" data-close="invoiceDialog" aria-label="Pencereyi kapat">×</button>
+    </div>
+    <div class="dialog-body">
+      <ul class="selection-list">
+        <li>
+          <span><strong id="invoiceItemName">Forma seti</strong><small id="invoiceItemDetail">1 adet • Stok çıkışı</small></span>
+          <strong id="invoiceItemTotal">₺2.500,00</strong>
+        </li>
+      </ul>
+      <div class="dialog-total"><span>Fatura taslağı</span><span id="invoiceGrandTotal">₺2.500,00</span></div>
+      <p style="margin:14px 0 0;color:var(--ink-500)">Bu adım faturayı doğrudan göndermez. Kullanıcının onayıyla taslak kaydedilir; son gönderim yetkili muhasebe işlemi olarak ayrıca yapılır.</p>
+    </div>
+    <div class="dialog-actions">
+      <button class="button" type="button" data-close="invoiceDialog">Geri Dön</button>
+      <button class="button primary" id="saveInvoiceDraft" type="button">Taslak Faturayı Kaydet</button>
+    </div>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    const tabs = [...document.querySelectorAll('.view-tab')];
+    const rows = [...document.querySelectorAll('#transactionRows tr')];
+    const search = document.querySelector('.search');
+    const emptyState = document.getElementById('emptyState');
+    const rowSummary = document.getElementById('rowSummary');
+    const balanceSummary = document.getElementById('balanceSummary');
+    let activeFilter = 'all';
+
+    const summaries = {
+      all: 'Toplam bakiye: ₺8.300,00 avans',
+      official: 'Belgeli / resmî bakiye: ₺0,00',
+      pending: 'Bekleyen satış: ₺3.700,00 • Dağıtılmamış: ₺12.000,00'
+    };
+
+    function applyFilters() {
+      const term = search.value.trim().toLocaleLowerCase('tr-TR');
+      let visible = 0;
+      rows.forEach(row => {
+        const inScope = activeFilter === 'all' || row.dataset.scope === activeFilter;
+        const matches = !term || row.textContent.toLocaleLowerCase('tr-TR').includes(term);
+        const show = inScope && matches;
+        row.hidden = !show;
+        if (show) visible += 1;
+      });
+      emptyState.style.display = visible ? 'none' : 'block';
+      rowSummary.textContent = visible + ' hareket gösteriliyor';
+      balanceSummary.textContent = summaries[activeFilter];
+    }
+
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        activeFilter = tab.dataset.filter;
+        tabs.forEach(item => item.setAttribute('aria-selected', String(item === tab)));
+        applyFilters();
+      });
+    });
+
+    search.addEventListener('input', applyFilters);
+
+    rows.forEach(row => {
+      row.addEventListener('click', () => {
+        rows.forEach(item => item.classList.remove('selected'));
+        row.classList.add('selected');
+      });
+      row.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          row.click();
+        }
+      });
+    });
+
+    const issueDialog = document.getElementById('issueDialog');
+    const paymentDialog = document.getElementById('paymentDialog');
+    const invoiceDialog = document.getElementById('invoiceDialog');
+    const toast = document.getElementById('toast');
+    const money = new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' });
+    let issueType = 'stock';
+    let toastTimer;
+
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 4200);
+    }
+
+    document.querySelector('[data-open-issue]').addEventListener('click', () => issueDialog.showModal());
+    document.querySelector('[data-open-payment]').addEventListener('click', () => paymentDialog.showModal());
+    document.querySelector('[data-show-pending]').addEventListener('click', () => {
+      document.querySelector('[data-filter="pending"]').click();
+      document.querySelector('.content-card').scrollIntoView({ behavior: 'smooth' });
+    });
+
+    document.querySelectorAll('[data-close]').forEach(button => {
+      button.addEventListener('click', () => document.getElementById(button.dataset.close).close());
+    });
+
+    const issueTypeTabs = [...document.querySelectorAll('[data-issue-type]')];
+    const stockCatalog = document.getElementById('stockCatalog');
+    const serviceCatalog = document.getElementById('serviceCatalog');
+    const selectedItemName = document.getElementById('selectedItemName');
+    const issueQuantity = document.getElementById('issueQuantity');
+    const issuePrice = document.getElementById('issuePrice');
+    const issueDiscount = document.getElementById('issueDiscount');
+    const discountPermission = document.getElementById('discountPermission');
+    const officialIssue = document.getElementById('officialIssue');
+    const saveIssueButton = document.getElementById('saveIssueButton');
+    const catalogSearch = document.getElementById('catalogSearch');
+    const catalogSearchLabel = document.getElementById('catalogSearchLabel');
+
+    function activeCatalog() {
+      return issueType === 'stock' ? stockCatalog : serviceCatalog;
+    }
+
+    function chooseCatalogItem(button) {
+      activeCatalog().querySelectorAll('.catalog-item').forEach(item => item.setAttribute('aria-pressed', String(item === button)));
+      selectedItemName.textContent = button.dataset.name;
+      issuePrice.value = button.dataset.price;
+      recalculateIssue();
+    }
+
+    function setIssueType(nextType) {
+      issueType = nextType;
+      issueTypeTabs.forEach(tab => tab.setAttribute('aria-selected', String(tab.dataset.issueType === nextType)));
+      stockCatalog.hidden = nextType !== 'stock';
+      serviceCatalog.hidden = nextType !== 'service';
+      catalogSearch.value = '';
+      catalogSearch.placeholder = nextType === 'stock' ? 'Ürün adı veya kodu' : 'Hizmet adı veya kodu';
+      catalogSearchLabel.textContent = nextType === 'stock' ? 'Stoklarda ara' : 'Hizmetlerde ara';
+      activeCatalog().querySelectorAll('.catalog-item').forEach(item => item.hidden = false);
+      chooseCatalogItem(activeCatalog().querySelector('.catalog-item'));
+    }
+
+    issueTypeTabs.forEach(tab => tab.addEventListener('click', () => setIssueType(tab.dataset.issueType)));
+
+    document.querySelectorAll('.catalog-item').forEach(button => {
+      button.addEventListener('click', () => chooseCatalogItem(button));
+    });
+
+    catalogSearch.addEventListener('input', () => {
+      const term = catalogSearch.value.trim().toLocaleLowerCase('tr-TR');
+      activeCatalog().querySelectorAll('.catalog-item').forEach(item => {
+        item.hidden = Boolean(term) && !item.textContent.toLocaleLowerCase('tr-TR').includes(term);
+      });
+    });
+
+    function recalculateIssue() {
+      const quantity = Math.max(0, Number(issueQuantity.value) || 0);
+      const price = Math.max(0, Number(issuePrice.value) || 0);
+      const discount = Math.max(0, Number(issueDiscount.value) || 0);
+      const subtotal = quantity * price;
+      const discountAmount = subtotal * Math.min(discount, 100) / 100;
+      const net = subtotal - discountAmount;
+      document.getElementById('issueSubtotal').textContent = money.format(subtotal);
+      document.getElementById('issueDiscountAmount').textContent = money.format(discountAmount);
+      document.getElementById('issueNet').textContent = money.format(net);
+      const overLimit = discount > 10;
+      discountPermission.textContent = overLimit
+        ? 'Yetki sınırı aşıldı. Bu kullanıcı en fazla %10 iskonto uygulayabilir.'
+        : 'Bu kullanıcının iskonto sınırı: %10';
+      discountPermission.classList.toggle('error', overLimit);
+      saveIssueButton.disabled = overLimit || quantity <= 0;
+      saveIssueButton.style.opacity = saveIssueButton.disabled ? '.55' : '1';
+      return { quantity, price, discount, subtotal, discountAmount, net };
+    }
+
+    [issueQuantity, issuePrice, issueDiscount].forEach(input => input.addEventListener('input', recalculateIssue));
+
+    officialIssue.addEventListener('change', () => {
+      saveIssueButton.textContent = officialIssue.checked ? 'Fatura Önizlemesine Geç' : 'Çıkışı Kaydet';
+    });
+
+    saveIssueButton.addEventListener('click', () => {
+      const values = recalculateIssue();
+      if (saveIssueButton.disabled) return;
+      if (officialIssue.checked) {
+        document.getElementById('invoiceItemName').textContent = selectedItemName.textContent;
+        document.getElementById('invoiceItemDetail').textContent =
+          values.quantity + ' adet • ' + (issueType === 'stock' ? 'Stok çıkışı' : 'Hizmet satışı');
+        document.getElementById('invoiceItemTotal').textContent = money.format(values.net);
+        document.getElementById('invoiceGrandTotal').textContent = money.format(values.net);
+        document.getElementById('invoiceDialogSubtitle').textContent =
+          'Resmî çıkış seçildi. Taslak kaydedilmeden önce son kontrolü yapın.';
+        issueDialog.close();
+        invoiceDialog.showModal();
+      } else {
+        issueDialog.close();
+        showToast(issueType === 'stock'
+          ? 'Stok çıkışı kaydedildi, stoktan düşüldü ve Muhasebe Bekleyen listesine gönderildi.'
+          : 'Hizmet satışı kaydedildi ve Muhasebe Bekleyen listesine gönderildi.');
+      }
+    });
+
+    const officialPayment = document.getElementById('officialPayment');
+    const savePaymentButton = document.getElementById('savePaymentButton');
+    officialPayment.addEventListener('change', () => {
+      savePaymentButton.textContent = officialPayment.checked ? 'Belge Önizlemesine Geç' : 'Tahsilatı Kaydet';
+    });
+
+    savePaymentButton.addEventListener('click', () => {
+      const amount = Math.max(0, Number(document.getElementById('paymentAmount').value) || 0);
+      if (!amount) return;
+      if (officialPayment.checked) {
+        const method = document.getElementById('paymentMethod').value;
+        document.getElementById('invoiceItemName').textContent = 'Tahsilat belge eşleştirmesi';
+        document.getElementById('invoiceItemDetail').textContent = method + ' • Resmî işlem';
+        document.getElementById('invoiceItemTotal').textContent = money.format(amount);
+        document.getElementById('invoiceGrandTotal').textContent = money.format(amount);
+        document.getElementById('invoiceDialogSubtitle').textContent =
+          'Resmî tahsilat seçildi. Fatura veya mevcut belge eşleştirmesini kontrol edin.';
+        paymentDialog.close();
+        invoiceDialog.showModal();
+      } else {
+        paymentDialog.close();
+        showToast('Tahsilat kaydedildi ve Muhasebe Bekleyen listesine gönderildi.');
+      }
+    });
+
+    document.getElementById('saveInvoiceDraft').addEventListener('click', () => {
+      invoiceDialog.close();
+      showToast('Fatura taslağı kaydedildi. Henüz gönderilmedi.');
+    });
+
+    const preview = new URLSearchParams(window.location.search);
+    const previewView = preview.get('view');
+    if (previewView && ['all', 'official', 'pending'].includes(previewView)) {
+      document.querySelector('[data-filter="' + previewView + '"]').click();
+    }
+    if (preview.get('type') === 'service') setIssueType('service');
+    if (preview.get('official') === '1') {
+      officialIssue.checked = true;
+      officialIssue.dispatchEvent(new Event('change'));
+      officialPayment.checked = true;
+      officialPayment.dispatchEvent(new Event('change'));
+    }
+    if (preview.get('dialog') === 'issue') issueDialog.showModal();
+    if (preview.get('dialog') === 'payment') paymentDialog.showModal();
+    if (preview.get('dialog') === 'invoice') invoiceDialog.showModal();
+  </script>
+</body>
+</html>
