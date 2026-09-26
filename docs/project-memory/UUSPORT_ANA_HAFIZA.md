@@ -1,6 +1,6 @@
 # UU Sport Ana Hafiza
 
-**Surum:** 2.0  
+**Surum:** 2.1  
 **Olusturma tarihi:** 23 Eylul 2026  
 **Son guncelleme:** 26 Eylul 2026  
 **Ilk yazar:** Codex  
@@ -389,6 +389,33 @@ dedi. Surum 0.1 yazilirken Claude Code su kararlari verdi; itiraz edilirse degis
 - Hiz siniri: giris, kod dogrulama, ilk kurulum ve iki adim acma uclarinda dakikada 20 istek.
 - CSRF korumasi: `SameSite=Strict` cerez + yazan her API isteginde `X-UUSport-Request`
   basligi.
+- 26.09.2026, kullanicinin dort geri bildirimi (`docs/designs/SURUM2_HAZIRLIK_NOTU_2026-09-26.md`):
+  cari kodu ve urun kodu icin bos birakilabilen `account_code` alani eklendi (mizan
+  gelince doldurulur, ADR henuz yazilmadi); kredi karti/kredi hesaplari bir banka
+  hesabinin altina baglanir, gercek odeme yine yalniz Cash/Bank/Pos turunde hesaptan
+  cikar; kredi taksit tablosu (`finance.loan`/`loan_installment`) ve cek portfoyu
+  (`finance.check_note`, seri giris destekli) eklendi; Excel sablon indirme eklendi.
+  Karisik stok+hizmet fatura zaten calisiyordu, kod degisikligi gerekmedi.
+- `[RISK]` Kredi taksit odemesi ve cek tahsilati, kredi vereni/cariyi temsil eden
+  Party'ye normal bir `Payment(Disbursement/Receipt)` yazar (ADR-004 modeli
+  degistirilmedi, mevcut kod yeniden kullanildi). Bu Party'nin "cari bakiyesi" bu
+  yuzden **kalan kredi borcunu göstermez** — kalan ana para daima
+  `loan_installment` tablosundan okunur (`/api/loans` `remainingPrincipal`). Bu
+  ayrim ADR-007'de (surum 2) netlestirilecek; simdilik ekranlarda kredi vereni
+  normal bir cari gibi listelemekten kacinilmali.
+
+`[DOGRU]` 26.09.2026 tespiti: `MigrationSecurity.Apply()` paylasilan/degisken bir
+tablo listesi kullaniyordu; ikinci migration'a yeni tablolar eklenince, **sifir bir
+veritabaninda** ilk migration calisirken henuz var olmayan tabloya RLS uygulamaya
+calisip hata veriyordu (mevcut veritabanlarinda gorunmuyordu, cunku onlarda ilk
+migration zaten uygulanmisti). Sifir veritabaninda iki migration sirayla denenerek
+yakalandi ve duzeltildi: her migration artik yalniz **kendi olusturdugu** tablolar
+icin `MigrationSecurity.ApplyRls(...)`/`RevokeUpdateDelete(...)` cagirir; eski
+migration'lardaki liste dondurulmustur, sonradan degistirilmez. Kural: yeni bir
+migration eklerken `MigrationSecurity.Apply()` (tam liste) DEGIL,
+`ApplySchemaGrants` + `ApplyRls(migrationBuilder, "<yeni tablolar>")` kullanilir.
+Canliya alma oncesi her migration zinciri **sifir bir veritabaninda** bastan
+denenmeden guvenilir sayilmaz (operasyon proseduru Kapi C/D ile uyumlu).
 
 ### 5.7 Surum 0.1'in bilinen sinirlari
 
@@ -598,6 +625,7 @@ Ayrintili standart:
 
 | Tarih | Surum | Yazan | Degisiklik |
 |---|---:|---|---|
+| 26.09.2026 | 2.1 | Claude Code | Kullanicinin 4 geri bildirimi islendi (surum 2 hazirlik notu): cari/urun hesap kodu alani, kredi karti/kredi hesap hiyerarsisi, kredi taksit tablosu, cek portfoyu (seri giris dahil), Excel sablon indirme; karisik stok+hizmet fatura zaten calisiyordu. Sifir veritabaninda migration zincirini test ederken gercek bir hata bulundu ve duzeltildi: `MigrationSecurity` artik migration basina dondurulmus tablo listesi kullaniyor. 48 test + tam HTTP duman testi gecti; canli gelistirme verisi korunarak surum yeniden baslatildi. |
 | 26.09.2026 | 2.0 | Claude Code | Surum 0.1 gelistirme ortaminda calisir hale getirildi: veritabani ve roller, EF Core migration, RLS, API, React arayuz, Excel aktarimi, 31 test, duman testi, masaustu kisayolu. Kullanicinin yetki devriyle verilen uygulama kararlari (5.6) ve bilinen sinirlar (5.7) kaydedildi; K3 duzeltildi (PostgreSQL gelistirme makinesinde calisiyor, `::1` eklendi); klasor agaci yenilendi (D1); migration araci EF Core. |
 | 26.09.2026 | 1.9 | Claude Code | ADR-005 (ilk surum kapsami, elle fatura, alis/gider icerde, aidat disarida) ve guvenlik standardi onaylandi; bolum 0, 3.3 ve 4.2 guncellendi; alan adi olmadigi kaydedildi. |
 | 26.09.2026 | 1.8 | Claude Code | ADR-002 (para/yuvarlama/KDV), ADR-003 (harmanlama), ADR-004 (cari hareket modeli, K1) onaylandi; bolum 0, 4.4 ve 8.3'e kayit ve baglanti eklendi. Standart, akis belgesi ve mockup guncellemeleri beklemede. |

@@ -4,6 +4,7 @@ using UUSport.Api.Data;
 using UUSport.Api.Domain;
 using UUSport.Api.Features.Accounting;
 using UUSport.Api.Features.Audit;
+using UUSport.Api.Features.Cash;
 using UUSport.Api.Features.Imports;
 using UUSport.Api.Infrastructure;
 
@@ -34,6 +35,8 @@ public sealed class TestWorld : IAsyncDisposable
     public AccountingService Accounting { get; }
     public AccountingQueries Queries { get; }
     public ImportService Imports { get; }
+    public LoanService Loans { get; }
+    public CheckService Checks { get; }
 
     private TestWorld(Guid tenantId, bool isAdmin, decimal maxDiscount)
     {
@@ -44,6 +47,8 @@ public sealed class TestWorld : IAsyncDisposable
         Accounting = new AccountingService(Db, Tenant, User, audit);
         Queries = new AccountingQueries(Db);
         Imports = new ImportService(Db, Tenant, User, audit);
+        Loans = new LoanService(Db, Tenant, User, audit, Accounting);
+        Checks = new CheckService(Db, Tenant, User, audit, Accounting);
     }
 
     public static AppDbContext CreateContext(TenantContext tenant) =>

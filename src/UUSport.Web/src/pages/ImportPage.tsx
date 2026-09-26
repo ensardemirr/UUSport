@@ -109,6 +109,10 @@ export function ImportPage() {
             </select>
           </Field>
           <p className="muted">{kindInfo.note}</p>
+          <div className="row">
+            <a className="btn" href={`/api/imports/template?kind=${kind}`}>Şablon İndir</a>
+            <span className="muted small">Zorunlu alanlar kalın işaretlidir; 2. satırdaki örnek değeri silip verinizi yazın.</span>
+          </div>
           <Field label="Excel dosyası (.xlsx)">
             <input className="input" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               onChange={(e) => { const f = e.target.files?.[0] ?? null; setFile(f); if (f) void doInspect(f) }} />

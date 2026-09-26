@@ -41,6 +41,8 @@ export function Layout() {
         <nav className="nav" aria-label="Tanımlar">
           {link('/katalog', 'Ürün ve Hizmetler')}
           {link('/kasa-banka', 'Kasa ve Banka')}
+          {link('/krediler', 'Krediler')}
+          {link('/cekler', 'Çek Portföyü')}
           {link('/aktarim', 'Excel Aktarımı')}
         </nav>
         <div className="nav-label">Rapor</div>

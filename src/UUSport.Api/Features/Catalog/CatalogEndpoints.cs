@@ -8,9 +8,9 @@ using UUSport.Api.Infrastructure;
 namespace UUSport.Api.Features.Catalog;
 
 public sealed record ItemInput(string Name, ItemKind Kind, string? Code, string? Unit, decimal UnitPrice,
-    bool PriceIncludesVat, decimal VatRate, bool IsActive = true);
+    bool PriceIncludesVat, decimal VatRate, string? AccountCode = null, bool IsActive = true);
 
-public sealed record CashAccountInput(string Name, CashAccountKind Kind, bool IsActive = true);
+public sealed record CashAccountInput(string Name, CashAccountKind Kind, Guid? ParentAccountId, bool IsActive = true);
 
 public static class CatalogEndpoints
 {
@@ -32,6 +32,7 @@ public static class CatalogEndpoints
         item.UnitPrice = input.UnitPrice;
         item.PriceIncludesVat = input.PriceIncludesVat;
         item.VatRate = input.VatRate;
+        item.AccountCode = string.IsNullOrWhiteSpace(input.AccountCode) ? null : input.AccountCode.Trim();
         item.IsActive = input.IsActive;
         item.SearchKey = TextRules.SearchKey(item.Name, item.Code);
     }
@@ -57,7 +58,7 @@ public static class CatalogEndpoints
             return Results.Ok(list.Select(i => new
             {
                 i.Id, i.Code, i.Name, kind = AppDbContext.ToSnake(i.Kind.ToString()), i.Unit, i.UnitPrice,
-                i.PriceIncludesVat, i.VatRate, i.IsActive,
+                i.PriceIncludesVat, i.VatRate, i.AccountCode, i.IsActive,
                 stockOnHand = i.Kind == ItemKind.Stock ? stock.GetValueOrDefault(i.Id) : (decimal?)null,
             }));
         });
@@ -93,6 +94,7 @@ public static class CatalogEndpoints
         cash.MapGet("", async (AppDbContext db, CancellationToken ct) =>
         {
             var accounts = await db.CashAccounts.OrderBy(a => a.Kind).ThenBy(a => a.Name).ToListAsync(ct);
+            var names = accounts.ToDictionary(a => a.Id, a => a.Name);
             var balances = await (from p in db.Payments
                                   group p by p.CashAccountId into g
                                   select new
@@ -104,6 +106,7 @@ public static class CatalogEndpoints
             return Results.Ok(accounts.Select(a => new
             {
                 a.Id, a.Name, kind = AppDbContext.ToSnake(a.Kind.ToString()), a.IsActive, balance = balances.GetValueOrDefault(a.Id),
+                a.ParentAccountId, parentAccountName = a.ParentAccountId is { } pid ? names.GetValueOrDefault(pid) : null,
             }));
         });
 
@@ -111,9 +114,10 @@ public static class CatalogEndpoints
         {
             var name = TextRules.CleanName(input.Name);
             if (name.Length == 0) throw new DomainException("name", "Hesap adı zorunlu.");
-            var a = new CashAccount { TenantId = tenant.Require(), Name = name, Kind = input.Kind, IsActive = input.IsActive };
+            var parentId = await ValidateHierarchy(db, input.Kind, input.ParentAccountId, ct);
+            var a = new CashAccount { TenantId = tenant.Require(), Name = name, Kind = input.Kind, ParentAccountId = parentId, IsActive = input.IsActive };
             db.CashAccounts.Add(a);
-            audit.Add("cash_account.create", "cash_account", a.Id, new { a.Name, kind = a.Kind.ToString() });
+            audit.Add("cash_account.create", "cash_account", a.Id, new { a.Name, kind = a.Kind.ToString(), parentId });
             await db.SaveChangesAsync(ct);
             return Results.Ok(new { a.Id });
         }).RequireAuthorization(Policies.Admin);
@@ -121,11 +125,34 @@ public static class CatalogEndpoints
         cash.MapPut("/{id:guid}", async (Guid id, CashAccountInput input, AppDbContext db, AuditWriter audit, CancellationToken ct) =>
         {
             var a = await db.CashAccounts.SingleOrDefaultAsync(x => x.Id == id, ct) ?? throw new NotFoundException("Hesap");
+            var parentId = await ValidateHierarchy(db, input.Kind, input.ParentAccountId, ct, id);
             a.Name = TextRules.CleanName(input.Name);
+            a.ParentAccountId = parentId;
             a.IsActive = input.IsActive;
-            audit.Add("cash_account.update", "cash_account", a.Id, new { a.Name, a.IsActive });
+            audit.Add("cash_account.update", "cash_account", a.Id, new { a.Name, a.IsActive, parentId });
             await db.SaveChangesAsync(ct);
             return Results.Ok(new { ok = true });
         }).RequireAuthorization(Policies.Admin);
+    }
+
+    /// <summary>
+    /// Surum 2 hazirlik notu madde 3: CreditCard/Loan bir Bank hesabinin altinda olmali;
+    /// Cash/Bank/Pos ust hesap tasimaz. Capraz-satir kural oldugu icin DB kisitiyla degil,
+    /// burada dogrulanir.
+    /// </summary>
+    internal static async Task<Guid?> ValidateHierarchy(AppDbContext db, CashAccountKind kind, Guid? parentAccountId, CancellationToken ct, Guid? selfId = null)
+    {
+        var needsParent = kind is CashAccountKind.CreditCard or CashAccountKind.Loan;
+        if (!needsParent)
+        {
+            if (parentAccountId is not null) throw new DomainException("parent", "Bu hesap türü bir üst hesaba bağlanamaz.");
+            return null;
+        }
+        if (parentAccountId is null) throw new DomainException("parent", "Bu hesap türü bir banka hesabının altında tanımlanmalı.");
+        if (parentAccountId == selfId) throw new DomainException("parent", "Bir hesap kendi altına bağlanamaz.");
+        var parent = await db.CashAccounts.SingleOrDefaultAsync(a => a.Id == parentAccountId, ct)
+                     ?? throw new NotFoundException("Üst hesap");
+        if (parent.Kind != CashAccountKind.Bank) throw new DomainException("parent", "Üst hesap banka türünde olmalı.");
+        return parentAccountId;
     }
 }

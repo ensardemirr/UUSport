@@ -471,6 +471,10 @@ namespace UUSport.Api.Data.Migrations
                         .HasColumnType("character varying(120)")
                         .HasColumnName("name");
 
+                    b.Property<Guid?>("ParentAccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("parent_account_id");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid")
                         .HasColumnName("tenant_id");
@@ -478,10 +482,100 @@ namespace UUSport.Api.Data.Migrations
                     b.HasKey("Id")
                         .HasName("pk_cash_account");
 
+                    b.HasIndex("ParentAccountId")
+                        .HasDatabaseName("ix_cash_account_parent_account_id");
+
                     b.HasIndex("TenantId")
                         .HasDatabaseName("ix_cash_account_tenant_id");
 
                     b.ToTable("cash_account", "finance");
+                });
+
+            modelBuilder.Entity("UUSport.Api.Domain.Check", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<string>("BankName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("bank_name");
+
+                    b.Property<Guid>("BatchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("batch_id");
+
+                    b.Property<string>("CheckNo")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("check_no")
+                        .UseCollation("C");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("Direction")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("direction");
+
+                    b.Property<DateOnly>("DueDate")
+                        .HasColumnType("date")
+                        .HasColumnName("due_date");
+
+                    b.Property<Guid>("PartyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("party_id");
+
+                    b.Property<Guid?>("PaymentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("payment_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("StatusNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("status_note");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_check_note");
+
+                    b.HasIndex("PartyId")
+                        .HasDatabaseName("ix_check_note_party_id");
+
+                    b.HasIndex("PaymentId")
+                        .HasDatabaseName("ix_check_note_payment_id");
+
+                    b.HasIndex("TenantId", "BatchId")
+                        .HasDatabaseName("ix_check_note__tenant_batch");
+
+                    b.ToTable("check_note", "finance", t =>
+                        {
+                            t.HasCheckConstraint("ck_check_note__amount_positive", "amount > 0");
+                        });
                 });
 
             modelBuilder.Entity("UUSport.Api.Domain.Document", b =>
@@ -865,6 +959,12 @@ namespace UUSport.Api.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<string>("AccountCode")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("account_code")
+                        .UseCollation("C");
+
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(40)
@@ -1018,6 +1118,144 @@ namespace UUSport.Api.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("UUSport.Api.Domain.Loan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CashAccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("cash_account_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("notes");
+
+                    b.Property<Guid>("PartyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("party_id");
+
+                    b.Property<decimal>("PrincipalAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("principal_amount");
+
+                    b.Property<DateOnly>("StartDate")
+                        .HasColumnType("date")
+                        .HasColumnName("start_date");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_loan");
+
+                    b.HasIndex("CashAccountId")
+                        .HasDatabaseName("ix_loan_cash_account_id");
+
+                    b.HasIndex("PartyId")
+                        .HasDatabaseName("ix_loan_party_id");
+
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("ix_loan_tenant_id");
+
+                    b.ToTable("loan", "finance", t =>
+                        {
+                            t.HasCheckConstraint("ck_loan__principal_positive", "principal_amount > 0");
+                        });
+                });
+
+            modelBuilder.Entity("UUSport.Api.Domain.LoanInstallment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<DateOnly>("DueDate")
+                        .HasColumnType("date")
+                        .HasColumnName("due_date");
+
+                    b.Property<decimal>("FeeAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("fee_amount");
+
+                    b.Property<int>("InstallmentNo")
+                        .HasColumnType("integer")
+                        .HasColumnName("installment_no");
+
+                    b.Property<decimal>("InterestAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("interest_amount");
+
+                    b.Property<Guid>("LoanId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("loan_id");
+
+                    b.Property<Guid?>("PaymentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("payment_id");
+
+                    b.Property<decimal>("PrincipalAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("principal_amount");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_loan_installment");
+
+                    b.HasIndex("PaymentId")
+                        .HasDatabaseName("ix_loan_installment_payment_id");
+
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("ix_loan_installment_tenant_id");
+
+                    b.HasIndex("LoanId", "InstallmentNo")
+                        .IsUnique()
+                        .HasDatabaseName("uq_loan_installment__loan_no");
+
+                    b.ToTable("loan_installment", "finance", t =>
+                        {
+                            t.HasCheckConstraint("ck_loan_installment__amounts_nonnegative", "principal_amount >= 0 AND interest_amount >= 0 AND fee_amount >= 0");
+
+                            t.HasCheckConstraint("ck_loan_installment__no_positive", "installment_no > 0");
+                        });
+                });
+
             modelBuilder.Entity("UUSport.Api.Domain.OpeningBalance", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1088,6 +1326,12 @@ namespace UUSport.Api.Data.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid")
                         .HasColumnName("id");
+
+                    b.Property<string>("AccountCode")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("account_code")
+                        .UseCollation("C");
 
                     b.Property<string>("Code")
                         .IsRequired()
@@ -1603,12 +1847,41 @@ namespace UUSport.Api.Data.Migrations
 
             modelBuilder.Entity("UUSport.Api.Domain.CashAccount", b =>
                 {
+                    b.HasOne("UUSport.Api.Domain.CashAccount", null)
+                        .WithMany()
+                        .HasForeignKey("ParentAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_cash_account_cash_account_parent_account_id");
+
                     b.HasOne("UUSport.Api.Domain.Tenant", null)
                         .WithMany()
                         .HasForeignKey("TenantId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_cash_account_tenant_tenant_id");
+                });
+
+            modelBuilder.Entity("UUSport.Api.Domain.Check", b =>
+                {
+                    b.HasOne("UUSport.Api.Domain.Party", null)
+                        .WithMany()
+                        .HasForeignKey("PartyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_check_note_party_party_id");
+
+                    b.HasOne("UUSport.Api.Domain.Payment", null)
+                        .WithMany()
+                        .HasForeignKey("PaymentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_check_note_payments_payment_id");
+
+                    b.HasOne("UUSport.Api.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_check_note_tenant_tenant_id");
                 });
 
             modelBuilder.Entity("UUSport.Api.Domain.Document", b =>
@@ -1721,6 +1994,53 @@ namespace UUSport.Api.Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_ledger_entry_tenant_tenant_id");
+                });
+
+            modelBuilder.Entity("UUSport.Api.Domain.Loan", b =>
+                {
+                    b.HasOne("UUSport.Api.Domain.CashAccount", null)
+                        .WithMany()
+                        .HasForeignKey("CashAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_loan_cash_account_cash_account_id");
+
+                    b.HasOne("UUSport.Api.Domain.Party", null)
+                        .WithMany()
+                        .HasForeignKey("PartyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_loan_party_party_id");
+
+                    b.HasOne("UUSport.Api.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_loan_tenant_tenant_id");
+                });
+
+            modelBuilder.Entity("UUSport.Api.Domain.LoanInstallment", b =>
+                {
+                    b.HasOne("UUSport.Api.Domain.Loan", null)
+                        .WithMany()
+                        .HasForeignKey("LoanId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_loan_installment_loan_loan_id");
+
+                    b.HasOne("UUSport.Api.Domain.Payment", null)
+                        .WithMany()
+                        .HasForeignKey("PaymentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_loan_installment_payments_payment_id");
+
+                    b.HasOne("UUSport.Api.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_loan_installment_tenant_tenant_id");
                 });
 
             modelBuilder.Entity("UUSport.Api.Domain.OpeningBalance", b =>

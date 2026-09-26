@@ -9,7 +9,7 @@ using UUSport.Api.Infrastructure;
 namespace UUSport.Api.Features.Parties;
 
 public sealed record PartyInput(string Name, PartyKind Kind, string? Code, string? Phone, string? Email,
-    string? TaxNumber, string? Notes, bool IsActive = true);
+    string? TaxNumber, string? Notes, string? AccountCode = null, bool IsActive = true);
 
 public sealed record AthleteInput(string FirstName, string LastName, string? GroupName, int? BirthYear, bool IsActive = true);
 
@@ -31,6 +31,8 @@ public static class PartyService
         p.Email = TextRules.NormalizeEmail(input.Email);
         p.TaxNumber = string.IsNullOrWhiteSpace(input.TaxNumber) ? null : new string(input.TaxNumber.Where(char.IsAsciiDigit).ToArray());
         p.Notes = string.IsNullOrWhiteSpace(input.Notes) ? null : input.Notes.Trim();
+        // Mali musavirin mizanindaki hesap kodu; mizan gelene kadar bos kalabilir (surum 2 hazirlik notu madde 2).
+        p.AccountCode = string.IsNullOrWhiteSpace(input.AccountCode) ? null : input.AccountCode.Trim();
         p.IsActive = input.IsActive;
         p.SearchKey = TextRules.SearchKey(p.Name, p.Code, p.Phone, p.Email, p.TaxNumber);
     }
@@ -80,7 +82,7 @@ public static class PartyEndpoints
                 party = new
                 {
                     p.Id, p.Code, p.Name, kind = AppDbContext.ToSnake(p.Kind.ToString()), p.Phone, p.Email, p.TaxNumber,
-                    p.Notes, p.IsActive,
+                    p.Notes, p.AccountCode, p.IsActive,
                 },
                 athletes = athletes.Select(a => new { a.Id, a.FirstName, a.LastName, a.GroupName, a.BirthYear, a.IsActive }),
                 summary = await queries.SummaryAsync(id, ct),

@@ -21,6 +21,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<DocumentVatLine> DocumentVatLines => Set<DocumentVatLine>();
     public DbSet<DocumentLink> DocumentLinks => Set<DocumentLink>();
     public DbSet<CashAccount> CashAccounts => Set<CashAccount>();
+    public DbSet<Loan> Loans => Set<Loan>();
+    public DbSet<LoanInstallment> LoanInstallments => Set<LoanInstallment>();
+    public DbSet<Check> Checks => Set<Check>();
     public DbSet<Payment> Payments => Set<Payment>();
     public DbSet<PaymentAllocation> PaymentAllocations => Set<PaymentAllocation>();
     public DbSet<OpeningBalance> OpeningBalances => Set<OpeningBalance>();
@@ -79,6 +82,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             e.Property(x => x.Phone).HasMaxLength(30).UseCollation("C");
             e.Property(x => x.Email).HasMaxLength(200).UseCollation("C");
             e.Property(x => x.TaxNumber).HasMaxLength(20).UseCollation("C");
+            e.Property(x => x.AccountCode).HasMaxLength(40).UseCollation("C");
             e.Property(x => x.Notes).HasMaxLength(2000);
             e.Property(x => x.SearchKey).HasMaxLength(400).UseCollation("C");
             e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique().HasDatabaseName("uq_party__tenant_code");
@@ -104,6 +108,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             e.Property(x => x.Kind).HasConversion(Snake<ItemKind>()).HasMaxLength(30);
             e.Property(x => x.Unit).HasMaxLength(20);
             e.Property(x => x.VatRate).HasPrecision(9, 4);
+            e.Property(x => x.AccountCode).HasMaxLength(40).UseCollation("C");
             e.Property(x => x.SearchKey).HasMaxLength(400).UseCollation("C");
             e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique().HasDatabaseName("uq_item__tenant_code");
             e.ToTable(t => t.HasCheckConstraint("ck_item__price_nonnegative", "unit_price >= 0"));
@@ -189,6 +194,52 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             Tenant(e, "cash_account", "finance");
             e.Property(x => x.Name).HasMaxLength(120);
             e.Property(x => x.Kind).HasConversion(Snake<CashAccountKind>()).HasMaxLength(20);
+            // Parent, uygulama katmaninda dogrulanir (Kind=Bank olmali); DB kisitiyla
+            // capraz-satir kural zorlanamadigi icin CatalogEndpoints.ValidateHierarchy'ye bakin.
+            e.HasOne<CashAccount>().WithMany().HasForeignKey(x => x.ParentAccountId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        b.Entity<Loan>(e =>
+        {
+            Tenant(e, "loan", "finance");
+            e.Property(x => x.Name).HasMaxLength(200);
+            e.Property(x => x.PrincipalAmount).HasPrecision(18, 2);
+            e.Property(x => x.Notes).HasMaxLength(1000);
+            e.HasOne<Party>().WithMany().HasForeignKey(x => x.PartyId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<CashAccount>().WithMany().HasForeignKey(x => x.CashAccountId).OnDelete(DeleteBehavior.Restrict);
+            e.ToTable(t => t.HasCheckConstraint("ck_loan__principal_positive", "principal_amount > 0"));
+        });
+
+        b.Entity<LoanInstallment>(e =>
+        {
+            Tenant(e, "loan_installment", "finance");
+            e.Property(x => x.PrincipalAmount).HasPrecision(18, 2);
+            e.Property(x => x.InterestAmount).HasPrecision(18, 2);
+            e.Property(x => x.FeeAmount).HasPrecision(18, 2);
+            e.HasOne<Loan>().WithMany().HasForeignKey(x => x.LoanId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Payment>().WithMany().HasForeignKey(x => x.PaymentId).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(x => new { x.LoanId, x.InstallmentNo }).IsUnique().HasDatabaseName("uq_loan_installment__loan_no");
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("ck_loan_installment__amounts_nonnegative",
+                    "principal_amount >= 0 AND interest_amount >= 0 AND fee_amount >= 0");
+                t.HasCheckConstraint("ck_loan_installment__no_positive", "installment_no > 0");
+            });
+        });
+
+        b.Entity<Check>(e =>
+        {
+            Tenant(e, "check_note", "finance");
+            e.Property(x => x.CheckNo).HasMaxLength(60).UseCollation("C");
+            e.Property(x => x.BankName).HasMaxLength(120);
+            e.Property(x => x.Amount).HasPrecision(18, 2);
+            e.Property(x => x.Direction).HasConversion(Snake<CheckDirection>()).HasMaxLength(20);
+            e.Property(x => x.Status).HasConversion(Snake<CheckStatus>()).HasMaxLength(30);
+            e.Property(x => x.StatusNote).HasMaxLength(500);
+            e.HasOne<Party>().WithMany().HasForeignKey(x => x.PartyId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Payment>().WithMany().HasForeignKey(x => x.PaymentId).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(x => new { x.TenantId, x.BatchId }).HasDatabaseName("ix_check_note__tenant_batch");
+            e.ToTable(t => t.HasCheckConstraint("ck_check_note__amount_positive", "amount > 0"));
         });
 
         b.Entity<Payment>(e =>

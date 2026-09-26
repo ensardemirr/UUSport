@@ -11,6 +11,7 @@ using UUSport.Api.Domain;
 using UUSport.Api.Features.Accounting;
 using UUSport.Api.Features.Audit;
 using UUSport.Api.Features.Auth;
+using UUSport.Api.Features.Cash;
 using UUSport.Api.Features.Catalog;
 using UUSport.Api.Features.Imports;
 using UUSport.Api.Features.Parties;
@@ -19,6 +20,7 @@ using UUSport.Api.Features.Users;
 using UUSport.Api.Infrastructure;
 
 [assembly: System.Runtime.Versioning.SupportedOSPlatform("windows")]
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("UUSport.Tests")]
 
 var builder = WebApplication.CreateBuilder(args);
 var dbOptions = builder.Configuration.GetSection("Database").Get<DatabaseOptions>() ?? new DatabaseOptions();
@@ -120,6 +122,8 @@ builder.Services.AddDataProtection()
 builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
 builder.Services.AddScoped<AuditWriter>();
 builder.Services.AddScoped<AccountingService>();
+builder.Services.AddScoped<LoanService>();
+builder.Services.AddScoped<CheckService>();
 builder.Services.AddScoped<AccountingQueries>();
 builder.Services.AddScoped<ImportService>();
 
@@ -155,6 +159,8 @@ app.MapUsers();
 app.MapParties();
 app.MapCatalog();
 app.MapAccounting();
+app.MapLoans();
+app.MapChecks();
 app.MapReports();
 app.MapImports();
 app.MapFallbackToFile("index.html");

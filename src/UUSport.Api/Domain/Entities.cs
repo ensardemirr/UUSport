@@ -54,6 +54,8 @@ public sealed class Party : TenantEntity
     public string? Email { get; set; }
     public string? TaxNumber { get; set; }
     public string? Notes { get; set; }
+    /// <summary>Mali musavirin mizanindaki hesap kodu. Bos olabilir; dolunca GMS.NET aktariminda kullanilir (surum 2 hazirlik notu madde 2).</summary>
+    public string? AccountCode { get; set; }
     public string SearchKey { get; set; } = string.Empty;
     public bool IsActive { get; set; } = true;
     public Guid? ImportBatchId { get; set; }
@@ -84,6 +86,8 @@ public sealed class Item : TenantEntity
     public decimal UnitPrice { get; set; }
     public bool PriceIncludesVat { get; set; } = true;
     public decimal VatRate { get; set; }
+    /// <summary>Mali musavirin mizanindaki hesap kodu. Bos olabilir (surum 2 hazirlik notu madde 2).</summary>
+    public string? AccountCode { get; set; }
     public string SearchKey { get; set; } = string.Empty;
     public bool IsActive { get; set; } = true;
     public Guid? ImportBatchId { get; set; }
@@ -175,12 +179,19 @@ public sealed class DocumentLink : TenantEntity
 
 // ---------- Kasa / banka ve tahsilat / odeme ----------
 
-public enum CashAccountKind { Cash, Bank, Pos }
+/// <summary>
+/// CreditCard ve Loan gercek tahsilat/odeme hesabi degildir; yalniz raporlama ve
+/// gruplama icin bir banka hesabinin altina baglanir (surum 2 hazirlik notu madde 3).
+/// Odeme kaydi (Payment) her zaman Cash/Bank/Pos turunde bir hesaba yazilir.
+/// </summary>
+public enum CashAccountKind { Cash, Bank, Pos, CreditCard, Loan }
 
 public sealed class CashAccount : TenantEntity
 {
     public string Name { get; set; } = string.Empty;
     public CashAccountKind Kind { get; set; }
+    /// <summary>Yalniz CreditCard/Loan icin dolu; bir Bank hesabini gosterir (kural: uygulama katmaninda).</summary>
+    public Guid? ParentAccountId { get; set; }
     public bool IsActive { get; set; } = true;
 }
 
@@ -292,6 +303,62 @@ public sealed class ImportRow : TenantEntity
     public Guid? AthleteId { get; set; }
     public Guid? ItemId { get; set; }
     public Guid? OpeningBalanceId { get; set; }
+}
+
+// ---------- Kredi ve taksit tablosu (surum 2 hazirlik notu madde 3) ----------
+
+/// <summary>
+/// Kredi. Borc veren banka/kurum bir Party'dir (kind=Supplier); taksit odemesi
+/// normal bir Payment(Disbursement) olarak o Party'ye yazilir (ADR-004 modeli
+/// degismez). CashAccountId yalniz raporlama icindir (Kind=Loan, bankanin altinda).
+/// </summary>
+public sealed class Loan : TenantEntity
+{
+    public Guid PartyId { get; set; }
+    public Guid CashAccountId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public decimal PrincipalAmount { get; set; }
+    public DateOnly StartDate { get; set; }
+    public string? Notes { get; set; }
+    public bool IsActive { get; set; } = true;
+}
+
+public sealed class LoanInstallment : TenantEntity
+{
+    public Guid LoanId { get; set; }
+    public int InstallmentNo { get; set; }
+    public DateOnly DueDate { get; set; }
+    public decimal PrincipalAmount { get; set; }
+    public decimal InterestAmount { get; set; }
+    public decimal FeeAmount { get; set; }
+    /// <summary>Odendiginde dolar; ilgili Payment(Disbursement) kaydini gosterir.</summary>
+    public Guid? PaymentId { get; set; }
+}
+
+// ---------- Cek portfoyu (surum 2 hazirlik notu madde 3) ----------
+
+public enum CheckDirection { Received, Issued }
+
+public enum CheckStatus { InPortfolio, SubmittedForCollection, Collected, Endorsed, Bounced }
+
+/// <summary>
+/// Cek kaydinin kendisi cariye tutar yazmaz (ADR-004 ilkesi burada da gecerlidir).
+/// Tahsil edildiginde otomatik bir Payment uretilir ve PaymentId'ye baglanir;
+/// nakit girisi vade tarihinde sayilir (spesifikasyon O37).
+/// </summary>
+public sealed class Check : TenantEntity
+{
+    public Guid PartyId { get; set; }
+    public CheckDirection Direction { get; set; }
+    public string CheckNo { get; set; } = string.Empty;
+    public string BankName { get; set; } = string.Empty;
+    public DateOnly DueDate { get; set; }
+    public decimal Amount { get; set; }
+    public CheckStatus Status { get; set; } = CheckStatus.InPortfolio;
+    /// <summary>Seri girilen cekleri gruplamak icin; tekil girilen cekte de doludur (kendi id'si).</summary>
+    public Guid BatchId { get; set; }
+    public Guid? PaymentId { get; set; }
+    public string? StatusNote { get; set; }
 }
 
 // ---------- Denetim kaydi ----------

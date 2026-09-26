@@ -57,6 +57,22 @@ public static class ImportKinds
         ],
     };
 
+    /// <summary>Sablon 2. satirindaki ornek deger; tamami sentetiktir, gercek veri icermez.</summary>
+    public static readonly IReadOnlyDictionary<string, string> ExampleValues = new Dictionary<string, string>
+    {
+        ["veli_adi"] = "Örnek Veli", ["veli_telefon"] = "0532 000 00 00", ["ogrenci_adi"] = "Örnek",
+        ["ogrenci_soyadi"] = "Öğrenci", ["grup"] = "U11", ["dogum_yili"] = "2015", ["acilis_bakiyesi"] = "0",
+        ["cari_adi"] = "Örnek Cari Ltd.", ["cari_kodu"] = "", ["tur"] = "müşteri", ["telefon"] = "0532 000 00 00",
+        ["eposta"] = "ornek@example.com", ["vergi_no"] = "1234567890",
+        ["ad"] = "Örnek ürün", ["kod"] = "", ["birim"] = "adet", ["birim_fiyat"] = "100", ["kdv_orani"] = "20",
+        ["kdv_dahil"] = "evet",
+    };
+
+    public static readonly IReadOnlyDictionary<string, string> KindTitle = new Dictionary<string, string>
+    {
+        [Students] = "Öğrenci Listesi", [Parties] = "Cari Listesi", [Items] = "Ürün ve Hizmet Listesi",
+    };
+
     public static void Validate(string kind)
     {
         if (!Fields.ContainsKey(kind)) throw new DomainException("kind", "Geçersiz aktarım türü.");
@@ -437,6 +453,55 @@ public sealed class ImportService(AppDbContext db, TenantContext tenant, ICurren
     {
         var next = await PartyService.NextCodeAsync(db, "C", ct);
         return int.Parse(next.AsSpan(1), CultureInfo.InvariantCulture);
+    }
+
+    // ------------------------------------------------------------------ sablon indirme (surum 2 hazirlik notu madde 1)
+
+    /// <summary>
+    /// Zorunlu alanlar kalin ve isaretli, ikinci satirda sentetik ornek deger bulunan bos
+    /// sablon uretir. Serbest sutun eslestirmeyi degistirmez; sablon basliklari zaten
+    /// ImportKinds.Fields ile birebir aynidir, bu yuzden geri yuklendiginde otomatik eslesir.
+    /// Ogrenci sablonunda sayfa adi kasitli olarak "Sayfa1 (2)" ile ayni verilir.
+    /// </summary>
+    public static byte[] BuildTemplate(string kind)
+    {
+        ImportKinds.Validate(kind);
+        var fields = ImportKinds.Fields[kind];
+        using var wb = new XLWorkbook();
+        var sheetName = kind == ImportKinds.Students ? ImportKinds.StudentSheet : ImportKinds.KindTitle[kind];
+        var ws = wb.AddWorksheet(sheetName);
+
+        for (var c = 0; c < fields.Length; c++)
+        {
+            var f = fields[c];
+            var header = ws.Cell(1, c + 1);
+            header.Value = f.Required ? $"{f.Label} *" : f.Label;
+            header.Style.Font.Bold = true;
+            if (f.Required)
+            {
+                header.Style.Fill.BackgroundColor = XLColor.FromArgb(255, 243, 224);
+                header.Style.Font.FontColor = XLColor.FromArgb(122, 75, 0);
+            }
+            var example = ws.Cell(2, c + 1);
+            example.Value = ImportKinds.ExampleValues.GetValueOrDefault(f.Key, "");
+            example.Style.Font.FontColor = XLColor.Gray;
+            example.Style.Font.Italic = true;
+        }
+        ws.Row(1).Height = 20;
+        ws.SheetView.FreezeRows(1);
+        ws.Columns(1, fields.Length).AdjustToContents(1, 2);
+
+        if (kind == ImportKinds.Students)
+        {
+            // Gercek dosyalarla ayni yapi olsun diye baska sayfa isimleri de yer alir;
+            // aktarim yalniz "Sayfa1 (2)" sayfasini okur, digerleri bilgi amaclidir.
+            var decoy = wb.AddWorksheet("Sayfa1");
+            decoy.Cell(1, 1).Value = "Bu sayfa okunmaz. Veri yalnız \"Sayfa1 (2)\" sayfasından alınır.";
+        }
+
+        using var ms = new MemoryStream();
+        wb.SaveAs(ms);
+        return ms.ToArray();
     }
 
     // ------------------------------------------------------------------ yardimcilar

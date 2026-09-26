@@ -582,7 +582,8 @@ public sealed class AccountingService(AppDbContext db, TenantContext tenant, ICu
         var ok = method switch
         {
             PaymentMethod.Cash => kind == CashAccountKind.Cash,
-            PaymentMethod.Card => kind == CashAccountKind.Pos,
+            // Pos: musteriden POS tahsilati. CreditCard: sirketin kendi kredi kartiyla odeme (surum 2 hazirlik notu madde 3).
+            PaymentMethod.Card => kind is CashAccountKind.Pos or CashAccountKind.CreditCard,
             PaymentMethod.Transfer => kind == CashAccountKind.Bank,
             PaymentMethod.Check => kind is CashAccountKind.Bank or CashAccountKind.Cash,
             _ => false,

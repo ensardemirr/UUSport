@@ -16,6 +16,15 @@ public static class ImportEndpoints
 
         g.MapGet("/kinds", () => Results.Ok(ImportKinds.Fields.Select(k => new { kind = k.Key, fields = k.Value })));
 
+        // Surum 2 hazirlik notu madde 1: zorunlu alanlari isaretli, sentetik ornekli bos sablon.
+        // GET oldugu icin SecurityMiddleware'deki CSRF basligi gerekmez; dogrudan indirilebilir.
+        g.MapGet("/template", (string kind) =>
+        {
+            var bytes = ImportService.BuildTemplate(kind);
+            var fileName = $"uusport-{kind}-sablon.xlsx";
+            return Results.File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
+        });
+
         // CSRF korumasi ozel baslikla saglanir (SecurityMiddleware); form antiforgery'si kullanilmaz.
         g.MapPost("/inspect", async (IFormFile file, string kind, string? sheet, ImportService s) =>
         {

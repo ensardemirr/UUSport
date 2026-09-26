@@ -79,7 +79,7 @@ export type PartySummary = {
 export type PartyDetail = {
   party: {
     id: string; code: string; name: string; kind: PartyKind; phone: string | null; email: string | null
-    taxNumber: string | null; notes: string | null; isActive: boolean
+    taxNumber: string | null; notes: string | null; accountCode: string | null; isActive: boolean
   }
   athletes: { id: string; firstName: string; lastName: string; groupName: string | null; birthYear: number | null; isActive: boolean }[]
   summary: PartySummary
@@ -114,10 +114,15 @@ export type DocumentRow = {
 
 export type Item = {
   id: string; code: string; name: string; kind: 'stock' | 'service'; unit: string; unitPrice: Money
-  priceIncludesVat: boolean; vatRate: Money; isActive: boolean; stockOnHand: Money | null
+  priceIncludesVat: boolean; vatRate: Money; accountCode: string | null; isActive: boolean; stockOnHand: Money | null
 }
 
-export type CashAccount = { id: string; name: string; kind: 'cash' | 'bank' | 'pos'; isActive: boolean; balance: Money }
+export type CashAccountKind = 'cash' | 'bank' | 'pos' | 'credit_card' | 'loan'
+
+export type CashAccount = {
+  id: string; name: string; kind: CashAccountKind; isActive: boolean; balance: Money
+  parentAccountId: string | null; parentAccountName: string | null
+}
 
 export type PendingWork = {
   salesAwaitingInvoice: LineRow[]
@@ -125,3 +130,26 @@ export type PendingWork = {
   unallocatedPayments: PaymentRow[]
   pendingOpeningBalances: { id: string; partyId: string; partyName: string; amount: Money; note: string | null; importBatchId: string | null }[]
 }
+
+// ---------------- surum 2 hazirlik notu: kredi ve cek ----------------
+
+export type LoanRow = {
+  id: string; partyId: string; partyName: string; cashAccountId: string; cashAccountName: string; name: string
+  principalAmount: Money; startDate: string; isActive: boolean; installmentCount: number; paidCount: number
+  remainingPrincipal: Money; nextDueDate: string | null
+}
+
+export type LoanInstallmentRow = {
+  id: string; installmentNo: number; dueDate: string; principalAmount: Money; interestAmount: Money
+  feeAmount: Money; totalAmount: Money; isPaid: boolean; paymentId: string | null
+}
+
+export type CheckDirection = 'received' | 'issued'
+export type CheckStatus = 'in_portfolio' | 'submitted_for_collection' | 'collected' | 'endorsed' | 'bounced'
+
+export type CheckRow = {
+  id: string; partyId: string; partyName: string; direction: CheckDirection; checkNo: string; bankName: string
+  dueDate: string; amount: Money; status: CheckStatus; batchId: string; paymentId: string | null; statusNote: string | null
+}
+
+export type CheckSeriesRow = { checkNo: string; dueDate: string; amount: Money }

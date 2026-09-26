@@ -4,6 +4,7 @@ import { Loading, ToastProvider } from './components'
 import { Layout } from './Layout'
 import { LoginPage, MfaSetupPage, SetupPage } from './pages/AuthPages'
 import { ImportPage } from './pages/ImportPage'
+import { ChecksPage, LoansPage } from './pages/CashDetailPages'
 import { PartyDetailPage, PartyListPage } from './pages/PartyPages'
 import { AuditPage, CashPage, CatalogPage, DashboardPage, DocumentsPage, PendingPage, ReportsPage, UsersPage } from './pages/WorkPages'
 
@@ -24,6 +25,8 @@ function Gate() {
         <Route path="faturalar" element={<DocumentsPage />} />
         <Route path="katalog" element={<CatalogPage />} />
         <Route path="kasa-banka" element={<CashPage />} />
+        <Route path="krediler" element={<LoansPage />} />
+        <Route path="cekler" element={<ChecksPage />} />
         <Route path="aktarim" element={<ImportPage />} />
         <Route path="raporlar" element={<ReportsPage />} />
         {isAdmin ? <Route path="yonetim/kullanicilar" element={<UsersPage />} /> : null}

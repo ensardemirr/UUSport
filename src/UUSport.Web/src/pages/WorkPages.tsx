@@ -217,7 +217,7 @@ export function CatalogPage() {
 }
 
 function ItemDialog({ item, onClose, onSaved }: { item: Item | 'new' | null; onClose: () => void; onSaved: () => void }) {
-  const blank = { name: '', kind: 'service', code: '', unit: 'adet', unitPrice: '', priceIncludesVat: true, vatRate: '10', isActive: true }
+  const blank = { name: '', kind: 'service', code: '', unit: 'adet', unitPrice: '', priceIncludesVat: true, vatRate: '10', accountCode: '', isActive: true }
   const [form, setForm] = useState(blank)
   const [error, setError] = useState<string | null>(null)
   const [loadedFor, setLoadedFor] = useState<unknown>(null)
@@ -226,7 +226,7 @@ function ItemDialog({ item, onClose, onSaved }: { item: Item | 'new' | null; onC
     setError(null)
     setForm(item && item !== 'new' ? {
       name: item.name, kind: item.kind, code: item.code, unit: item.unit, unitPrice: String(item.unitPrice).replace('.', ','),
-      priceIncludesVat: item.priceIncludesVat, vatRate: String(Number(item.vatRate)), isActive: item.isActive,
+      priceIncludesVat: item.priceIncludesVat, vatRate: String(Number(item.vatRate)), accountCode: item.accountCode ?? '', isActive: item.isActive,
     } : blank)
   }
   return (
@@ -259,6 +259,9 @@ function ItemDialog({ item, onClose, onSaved }: { item: Item | 'new' | null; onC
           <input className="input" inputMode="decimal" value={form.vatRate} onChange={(e) => setForm({ ...form, vatRate: e.target.value })} />
         </Field>
         <Field label="Birim"><input className="input" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} /></Field>
+        <Field label="Hesap kodu" hint="mali müşavirin mizanından; boş bırakılabilir">
+          <input className="input" value={form.accountCode} onChange={(e) => setForm({ ...form, accountCode: e.target.value })} />
+        </Field>
         {item !== 'new' ? (
           <Field label="Durum">
             <select className="input" value={form.isActive ? '1' : '0'} onChange={(e) => setForm({ ...form, isActive: e.target.value === '1' })}>
@@ -275,24 +278,45 @@ function ItemDialog({ item, onClose, onSaved }: { item: Item | 'new' | null; onC
 // Kasa ve banka
 // =====================================================================
 
+const cashKindName: Record<string, string> = { cash: 'Kasa', bank: 'Banka', pos: 'POS', credit_card: 'Kredi Kartı', loan: 'Kredi' }
+
 export function CashPage() {
   const { isAdmin } = useAuth()
   const toast = useToast()
   const { data, error, reload } = useAsync(() => api<CashAccount[]>('/api/cash-accounts'), [])
-  const [form, setForm] = useState({ name: '', kind: 'bank' })
+  const [form, setForm] = useState({ name: '', kind: 'bank', parentAccountId: '' })
   const [formError, setFormError] = useState<string | null>(null)
+
+  const banks = (data ?? []).filter((a) => a.kind === 'bank')
+  const needsParent = form.kind === 'credit_card' || form.kind === 'loan'
+  // Banka hesaplarini once, altlarindaki kredi karti/kredi hesaplarini hemen ardindan sirala (surum 2 hazirlik notu madde 3).
+  const ordered = (data ?? []).filter((a) => !a.parentAccountId)
+    .flatMap((top) => [top, ...(data ?? []).filter((c) => c.parentAccountId === top.id)])
+    .concat((data ?? []).filter((a) => a.parentAccountId && !(data ?? []).some((p) => p.id === a.parentAccountId)))
+
   return (
     <>
-      <div className="page-head"><div><h1>Kasa ve Banka</h1><p className="sub">Tahsilat ve ödemelerin hesaplara göre bakiyesi.</p></div></div>
+      <div className="page-head">
+        <div><h1>Kasa ve Banka</h1><p className="sub">Tahsilat ve ödemelerin hesaplara göre bakiyesi. Kredi kartı ve kredi hesapları bir banka hesabının altında tanımlanır.</p></div>
+        <div className="actions">
+          <Link className="btn" to="/krediler">Krediler</Link>
+          <Link className="btn" to="/cekler">Çek Portföyü</Link>
+        </div>
+      </div>
       <ErrorBox message={error} />
       <div className="grid-2">
         <div className="panel">
           {!data ? <Loading /> : (
             <table>
               <thead><tr><th>Hesap</th><th>Tür</th><th className="num">Bakiye</th></tr></thead>
-              <tbody>{data.map((a) => (
-                <tr key={a.id}><td>{a.name}{!a.isActive ? <span className="sub">kullanım dışı</span> : null}</td>
-                  <td>{({ cash: 'Kasa', bank: 'Banka', pos: 'POS' } as Record<string, string>)[a.kind]}</td><td className="num">{money(a.balance)}</td></tr>
+              <tbody>{ordered.map((a) => (
+                <tr key={a.id}>
+                  <td style={{ paddingLeft: a.parentAccountId ? 28 : undefined }}>
+                    {a.parentAccountId ? '↳ ' : ''}{a.name}{!a.isActive ? <span className="sub">kullanım dışı</span> : null}
+                  </td>
+                  <td>{cashKindName[a.kind] ?? a.kind}</td>
+                  <td className="num">{money(a.balance)}</td>
+                </tr>
               ))}</tbody>
             </table>
           )}
@@ -304,14 +328,27 @@ export function CashPage() {
               <ErrorBox message={formError} />
               <Field label="Hesap adı"><input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="ör. Ziraat Bankası" /></Field>
               <Field label="Tür">
-                <select className="input" value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value })}>
+                <select className="input" value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value, parentAccountId: '' })}>
                   <option value="bank">Banka</option><option value="cash">Kasa</option><option value="pos">POS</option>
+                  <option value="credit_card">Kredi Kartı (bir bankanın altında)</option>
+                  <option value="loan">Kredi (bir bankanın altında)</option>
                 </select>
               </Field>
+              {needsParent ? (
+                <Field label="Hangi banka hesabının altında">
+                  <select className="input" value={form.parentAccountId} onChange={(e) => setForm({ ...form, parentAccountId: e.target.value })}>
+                    <option value="">— seçin —</option>
+                    {banks.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                </Field>
+              ) : null}
               <button className="btn primary" type="button" onClick={async () => {
                 setFormError(null)
-                try { await post('/api/cash-accounts', form); setForm({ name: '', kind: 'bank' }); toast('Hesap eklendi.'); reload() }
-                catch (e) { setFormError(errorText(e)) }
+                if (needsParent && !form.parentAccountId) { setFormError('Üst banka hesabı seçilmeli.'); return }
+                try {
+                  await post('/api/cash-accounts', { name: form.name, kind: form.kind, parentAccountId: needsParent ? form.parentAccountId : null })
+                  setForm({ name: '', kind: 'bank', parentAccountId: '' }); toast('Hesap eklendi.'); reload()
+                } catch (e) { setFormError(errorText(e)) }
               }}>Hesabı Ekle</button>
             </div>
           </div>

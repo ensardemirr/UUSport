@@ -75,7 +75,7 @@ function Balance({ value }: { value: string }) {
 export function PartyEditDialog({ open, party, onClose, onSaved }: {
   open: boolean; party?: PartyDetail['party']; onClose: () => void; onSaved: (id: string) => void
 }) {
-  const [form, setForm] = useState({ name: '', kind: 'customer' as PartyKind, code: '', phone: '', email: '', taxNumber: '', notes: '', isActive: true })
+  const [form, setForm] = useState({ name: '', kind: 'customer' as PartyKind, code: '', phone: '', email: '', taxNumber: '', notes: '', accountCode: '', isActive: true })
   const [error, setError] = useState<string | null>(null)
   const [loadedFor, setLoadedFor] = useState<string | null>(null)
   const key = open ? (party?.id ?? 'new') : null
@@ -84,8 +84,8 @@ export function PartyEditDialog({ open, party, onClose, onSaved }: {
     setError(null)
     setForm(party ? {
       name: party.name, kind: party.kind, code: party.code, phone: party.phone ?? '', email: party.email ?? '',
-      taxNumber: party.taxNumber ?? '', notes: party.notes ?? '', isActive: party.isActive,
-    } : { name: '', kind: 'customer', code: '', phone: '', email: '', taxNumber: '', notes: '', isActive: true })
+      taxNumber: party.taxNumber ?? '', notes: party.notes ?? '', accountCode: party.accountCode ?? '', isActive: party.isActive,
+    } : { name: '', kind: 'customer', code: '', phone: '', email: '', taxNumber: '', notes: '', accountCode: '', isActive: true })
   }
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm({ ...form, [k]: e.target.value })
   return (
@@ -114,6 +114,9 @@ export function PartyEditDialog({ open, party, onClose, onSaved }: {
         <Field label="Telefon"><input className="input" value={form.phone} onChange={set('phone')} inputMode="tel" /></Field>
         <Field label="E-posta"><input className="input" value={form.email} onChange={set('email')} type="email" /></Field>
         <Field label="Vergi / TC no"><input className="input" value={form.taxNumber} onChange={set('taxNumber')} inputMode="numeric" /></Field>
+        <Field label="Hesap kodu" hint="mali müşavirin mizanından; boş bırakılabilir">
+          <input className="input" value={form.accountCode} onChange={set('accountCode')} />
+        </Field>
         {party ? (
           <Field label="Durum">
             <select className="input" value={form.isActive ? '1' : '0'} onChange={(e) => setForm({ ...form, isActive: e.target.value === '1' })}>
