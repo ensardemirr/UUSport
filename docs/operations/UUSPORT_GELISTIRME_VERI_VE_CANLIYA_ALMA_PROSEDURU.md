@@ -329,3 +329,20 @@ Durum: Gelistirme RDP'si, yerel bilgisayardaki ilk canli hedef ve sonraki
 ayri canli RDP hedefi birbirinden ayrildi.
 Kurulum dosyalari ve betikler henuz hazirlanmadi; temiz sanal makine testi ve
 canli ortam dogrulamasi yapilmadi.
+
+## 14. Mobil uygulama ve havadan guncelleme (OTA) - 26 Eylul 2026
+
+`[KARAR]` Kaynak: `docs/decisions/ADR-001_TEKNOLOJI_YIGINI_VE_ISTEMCI_MIMARISI.md`
+bolum 3.4. Faz 2'de mobil uygulama acildiginda uygulanir.
+
+- OTA yalniz ekran, is mantigi, metin ve gorsel degisikligi tasir. Yeni izin, yeni yerel
+  kutuphane veya Expo SDK yukseltmesi magaza surumu ve inceleme gerektirir.
+- Uygulamanin temel amacini veya niteligini degistiren degisiklik OTA ile yapilmaz.
+- OTA bir dagitim kanalidir. Bu prosedurdeki surum, Git commit'i, dogrulama ve geri
+  alma kayitlari OTA icin de ayri ayri tutulur.
+- Once test kanali, sonra kademeli yayin. Geri alma yolu yayindan once hazirdir.
+- Kotu bir OTA guncellemesi ayni anda tum telefonlara gider; test kanalinda dogrulanmamis
+  paket uretim kanalina gonderilmez.
+- API geriye uyumlu ilerler. Desteklenen en eski istemci surumu tanimlanir; daha eski
+  surume zorunlu guncelleme ekrani gosterilir.
+- Mobil uygulama surumu ile API surumu arasindaki uyumluluk matrisi manifestte bulunur.

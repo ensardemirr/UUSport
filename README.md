@@ -21,9 +21,16 @@ tamamlanan kurulumlar aynı dosyanın değişiklik geçmişine eklenir.
 
 ## Durum
 
-Proje başlangıç ve tasarım aşamasındadır. Geliştirmeye ara verilmiş, Claude Code
-denetimi beklenmektedir. Ekranlar, MVP kapsamı ve veri modeli onaylanmadan
-uygulama ya da veritabanı şeması oluşturulmayacaktır.
+Sürüm 0.1 geliştirme ortamında çalışıyor: ASP.NET Core API + React web arayüzü +
+PostgreSQL (ADR-001..005). Canlı kurulum henüz yoktur. Ayrıntı: ana hafıza bölüm 5.5–5.7.
+
+## Çalıştırma (geliştirme)
+
+- Masaüstündeki **UU Sport** kısayolu ya da
+  `powershell -ExecutionPolicy Bypass -File .\tools\run-uusport-dev.ps1`
+- Tarayıcı adresi: `http://127.0.0.1:5080` (yalnız bu bilgisayardan)
+- Derleme ve testler: `powershell -ExecutionPolicy Bypass -File .\tools\build-uusport.ps1`
+- İlk açılışta ilk kurulum ekranı gelir; iki adımlı doğrulama kurulmadan veri ekranları açılmaz.
 
 ## Klasörler
 

@@ -1,7 +1,7 @@
 # UU Sport PostgreSQL Adlandirma ve Migration Standardi
 
 **Durum:** `[KARAR]` Genel adlandirma ve guvenlik kurallari  
-**Durum:** `[ACIK]` Migration araci teknoloji ADR'sinden sonra secilecek  
+**Durum:** `[KARAR]` Migration araci EF Core (26 Eylul 2026, bolum 10)  
 **Tarih:** 23 Eylul 2026
 
 Bu standart PostgreSQL semasi olusturulmadan once uygulanacak ortak dili tanimlar.
@@ -79,7 +79,11 @@ kesinlesir. Dis sistem anahtari birincil anahtar yapilmaz.
 
 ## 4. Veri turleri
 
-- Para: `numeric(18,2)`; `real` veya `double precision` kullanilmaz.
+- Para: `numeric(18,2)`; `real`, `double precision`, `float` ve `money` kullanilmaz.
+  Ayrinti ve yuvarlama kurali: ADR-002.
+- Satir KDV'si ve ara hesaplar: `numeric(18,6)`; satirda 2 haneye yuvarlanmaz (ADR-002).
+- Oran (KDV, iskonto, stopaj yuzdesi): `numeric(9,4)`.
+- API'de para, miktar ve oran JSON sayisi degil metin olarak tasinir (ADR-002).
 - Para birimi: ISO 4217 kodu, ornegin `TRY`.
 - Miktar: ihtiyaca gore `numeric(18,4)`.
 - Tarih: yalniz gun gerekiyorsa `date`.
@@ -179,8 +183,19 @@ otomatik bir kural degildir; sorgu ve veri hacmiyle olculur.
 - Destructive DDL varsayilan olarak ayni release'te yapilmaz; genislet-gecir-daralt
   uygulanir.
 
-`[ACIK]` EF Core, Prisma, Flyway veya baska migration araci teknoloji ADR'siyle
-belirlenecek. Arac secilene kadar elle SQL semasi baslatilmaz.
+`[KARAR]` 26 Eylul 2026 (ADR-001 acik konu 10, kullanicinin yetki devriyle): migration
+araci **EF Core**'dur. Migration'lar `src/UUSport.Api/Data/Migrations` altinda tutulur,
+yalniz `uusport_owner` rolu ile `UUSport.Api.dll migrate` komutuyla uygulanir; uygulama
+calisma zamaninda migration yapmaz. Rol yetkileri ve RLS politikalari her migration'in
+sonunda `MigrationSecurity.Apply` ile yeniden uygulanir. Canli pakette migration,
+`dotnet ef migrations script --idempotent` ile gozden gecirilebilir SQL olarak da uretilir.
+
+## 10A. Harmanlama
+
+`[KARAR]` ADR-003. Veritabani `ICU tr-TR` ile acikca olusturulur
+(`tools/setup-uusport-dev-db.ps1`). Kod, e-posta, belge no, dis anahtar ve kaynak turu
+sutunlarinda `COLLATE "C"` acikca yazilir; insan metni Turkce harmanlamayi kullanir.
+Aramalar `search_key` sutunu ve tek normalizasyon fonksiyonu (`TextRules.SearchKey`) ile yapilir.
 
 ## 11. SQL yazim ve performans kurallari
 

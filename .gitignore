@@ -59,3 +59,25 @@ tools/installers/*
 
 # Obsidian yerel kasa ayarlari
 .obsidian/
+
+# Derleme ciktisi: web arayuzu build ile API wwwroot'a uretilir
+src/UUSport.Api/wwwroot/
+*.tsbuildinfo
+.vite/
+
+# Masaustu gorsel ornek kopyasi (asli docs/designs altinda)
+UUSport-Gorsel-Ornekler/
+
+# Uzanti bazli savunma (guvenlik standardi bolum 10, denetim D2):
+# kaynak Excel/PDF ve anahtar dosyalari hangi klasorde olursa olsun Git'e girmez.
+*.xlsx
+*.xls
+*.xlsm
+*.csv
+*.pdf
+*.pem
+*.p12
+*.crt
+*.cer
+id_rsa*
+*.dpapi

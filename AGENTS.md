@@ -28,8 +28,13 @@ Oncelik sirasi:
   araclarina koyma. Gelistirme ve testte maskeli veya sentetik veri kullan.
 - Masaustu, web ve mobil istemciler PostgreSQL'e dogrudan baglanmaz; merkezi HTTPS
   API uzerinden calisir.
-- Teknoloji yigini kesinlesmeden uygulama kodu veya veritabani semasi baslatma.
-  Node.js/TypeScript yonu ile .NET/WPF yonu bir ADR ile karara baglanmalidir.
+- Teknoloji yigini ADR-001 ile kesindir: ASP.NET Core API + React web + React Native
+  (Expo) mobil + PostgreSQL; masaustu istemci yoktur. Mimari degisiklik yeni ADR ister.
+- Para, yuvarlama ve KDV: ADR-002. Turkce metin ve harmanlama: ADR-003. Cari hareket
+  modeli: ADR-004 (cariye yalniz satir, tahsilat/odeme ve onayli acilis bakiyesi yazar).
+- Guvenlik kurallari: `docs/standards/UUSPORT_GUVENLIK_STANDARDI.md`.
+- Kod degisikliginden sonra `tools/build-uusport.ps1` calistirilir; testler gecmeden is
+  bitmis sayilmaz. Arayuz degisikligi calisan programin ekran goruntusuyle dogrulanir.
 - Excel, PDF, resim, veri aktarimi, release, canliya alma veya geri yukleme
   calismasinda once
   `docs/operations/UUSPORT_GELISTIRME_VERI_VE_CANLIYA_ALMA_PROSEDURU.md`
@@ -52,3 +57,21 @@ Oncelik sirasi:
   Git commit'i, migration seviyesi, hash ve smoke test ayri dogrulanir.
 - Onaylanan karar veya tamamlanan kurulum sonrasinda ana hafizayi ve degisiklik
   gecmisini guncelle. Yazmadan once dosyanin son halini yeniden oku.
+- Claude ve Codex ayni dosyada calisabilir: ayni gun baska ajanin yazdigi satiri ezme,
+  birlestir. Canli surum iddiasi yalniz canlidaki surum dosyasi veya kurulum raporuyla
+  yazilir; rapor yoklugu "kurulmadi" demek degildir (ENS dersi).
+- Claude ve Codex canli ortama dogrudan baglanmaz.
+
+## Model ve efor secimi
+
+Her isin basinda bir satir yazilir: `Model: ... · Efor: ... · Gerekce: ...`. Karar
+hisse degil is turune dayanir:
+
+| Is turu | Model | Efor |
+|---|---|---|
+| ADR, muhasebe/vergi kurali, sema ve RLS tasarimi, guvenlik incelemesi, denetim | Opus | yuksek |
+| API ucu, ekran, form, migration, test, hata ayiklama, Excel aktarim kodu | Sonnet | orta |
+| Belge guncelleme, yeniden adlandirma, bicim, log okuma | Haiku | dusuk |
+
+Model degistirmek onbellegi sifirlar; isler model bazinda oturumlara gruplanir.
+Kullanici modeli ve eforu acikca belirlediyse o gecerlidir.

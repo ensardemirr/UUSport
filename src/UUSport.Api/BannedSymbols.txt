@@ -1,0 +1,8 @@
+M:System.Math.Round(System.Decimal);Para yuvarlamasi icin Money.Round kullanin (ADR-002: yarim yukari)
+M:System.Math.Round(System.Decimal,System.Int32);Para yuvarlamasi icin Money.Round kullanin (ADR-002: yarim yukari)
+M:System.Math.Round(System.Double);Para ve miktar double olamaz (ADR-002)
+M:System.Math.Round(System.Double,System.Int32);Para ve miktar double olamaz (ADR-002)
+M:System.String.ToLower;Kulture bagli. ToLowerInvariant veya ToLower(TextRules.Turkish) kullanin (ADR-003)
+M:System.String.ToUpper;Kulture bagli. ToUpperInvariant veya ToUpper(TextRules.Turkish) kullanin (ADR-003)
+M:System.Char.ToLower(System.Char);Kulture bagli. char.ToLowerInvariant kullanin (ADR-003)
+M:System.Char.ToUpper(System.Char);Kulture bagli. char.ToUpperInvariant kullanin (ADR-003)
