@@ -29,20 +29,70 @@ public sealed record DocumentInput(
 public sealed record DocumentResult(
     Guid DocumentId, decimal EnteredGross, decimal SystemNet, decimal SystemVat, decimal SystemGross, decimal Difference);
 
+/// <summary>Satir kilidi alinabilen tablolar (beyaz liste; SQL'e yalniz bunlar girer).</summary>
+public enum LockTable { Payment, Document, TradeLine, Item, OpeningBalance, LoanInstallment, CheckNote }
+
 /// <summary>
 /// ADR-004 cari hareket modeli. Cariye yalniz satir, tahsilat/odeme ve onayli acilis bakiyesi
-/// yazar; belge ve dagitim cariye tutar yazmaz. Her islem tek SaveChanges ile atomiktir ve
-/// denetim kaydi ayni islemde yazilir.
+/// yazar; belge ve dagitim cariye tutar yazmaz. Her komut tek transaction'da calisir; sinir
+/// kontrolu yapilan satirlar okunmadan once kilitlenir (S-02) ve denetim kaydi ayni islemde yazilir.
 /// </summary>
 public sealed class AccountingService(AppDbContext db, TenantContext tenant, ICurrentUser user, AuditWriter audit)
 {
     private static DateOnly Today => DateOnly.FromDateTime(DateTime.Now);
 
     // =====================================================================
+    // Transaction ve kilit (S-02)
+    // =====================================================================
+
+    /// <summary>
+    /// Komutu tek transaction'da calistirir. Ic ice cagrida (ör. kredi taksiti → tahsilat/odeme) disaridaki
+    /// transaction kullanilir; herhangi bir adimda hata olursa hicbir finansal etki kalmaz.
+    /// </summary>
+    public async Task<T> InTransactionAsync<T>(Func<Task<T>> work, CancellationToken ct)
+    {
+        if (db.Database.CurrentTransaction is not null) return await work();
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        var result = await work();
+        await tx.CommitAsync(ct);
+        return result;
+    }
+
+    public Task InTransactionAsync(Func<Task> work, CancellationToken ct) =>
+        InTransactionAsync(async () => { await work(); return 0; }, ct);
+
+    /// <summary>
+    /// Okuma-kontrol-yazma yarisini onlemek icin satirlari FOR UPDATE ile kilitler; kilitten SONRA okunan
+    /// deger guncel olur. Kilitlenmeyi onlemek icin sira: payment → document → trade_line → item → digerleri.
+    /// </summary>
+    internal async Task LockAsync(LockTable table, IEnumerable<Guid> ids, CancellationToken ct)
+    {
+        if (db.Database.CurrentTransaction is null)
+            throw new InvalidOperationException("Satır kilidi yalnız transaction içinde alınır.");
+        var ordered = ids.Distinct().Order().ToArray();
+        if (ordered.Length == 0) return;
+        var sql = table switch
+        {
+            LockTable.Payment => "SELECT 1 FROM finance.payment WHERE id = ANY({0}) ORDER BY id FOR UPDATE",
+            LockTable.Document => "SELECT 1 FROM billing.document WHERE id = ANY({0}) ORDER BY id FOR UPDATE",
+            LockTable.TradeLine => "SELECT 1 FROM billing.trade_line WHERE id = ANY({0}) ORDER BY id FOR UPDATE",
+            LockTable.Item => "SELECT 1 FROM inventory.item WHERE id = ANY({0}) ORDER BY id FOR UPDATE",
+            LockTable.OpeningBalance => "SELECT 1 FROM finance.opening_balance WHERE id = ANY({0}) ORDER BY id FOR UPDATE",
+            LockTable.LoanInstallment => "SELECT 1 FROM finance.loan_installment WHERE id = ANY({0}) ORDER BY id FOR UPDATE",
+            LockTable.CheckNote => "SELECT 1 FROM finance.check_note WHERE id = ANY({0}) ORDER BY id FOR UPDATE",
+            _ => throw new ArgumentOutOfRangeException(nameof(table)),
+        };
+        await db.Database.ExecuteSqlRawAsync(sql, [ordered], ct);
+    }
+
+    // =====================================================================
     // Satis / alis satiri
     // =====================================================================
 
-    public async Task<TradeLine> CreateTradeLineAsync(TradeLineInput input, CancellationToken ct)
+    public Task<TradeLine> CreateTradeLineAsync(TradeLineInput input, CancellationToken ct) =>
+        InTransactionAsync(() => CreateTradeLineCoreAsync(input, ct), ct);
+
+    private async Task<TradeLine> CreateTradeLineCoreAsync(TradeLineInput input, CancellationToken ct)
     {
         var tenantId = tenant.Require();
         if (input.Quantity <= 0) throw new DomainException("quantity", "Miktar sıfırdan büyük olmalı.");
@@ -113,10 +163,14 @@ public sealed class AccountingService(AppDbContext db, TenantContext tenant, ICu
     }
 
     /// <summary>ADR-004 S4: iade/duzeltme ters satirla yapilir; ilk satir degismez.</summary>
-    public async Task<TradeLine> ReverseTradeLineAsync(Guid lineId, ReverseLineInput input, CancellationToken ct)
+    public Task<TradeLine> ReverseTradeLineAsync(Guid lineId, ReverseLineInput input, CancellationToken ct) =>
+        InTransactionAsync(() => ReverseTradeLineCoreAsync(lineId, input, ct), ct);
+
+    private async Task<TradeLine> ReverseTradeLineCoreAsync(Guid lineId, ReverseLineInput input, CancellationToken ct)
     {
         var tenantId = tenant.Require();
         var reason = Clean(input.Reason) ?? throw new DomainException("reason", "İade/düzeltme gerekçesi zorunlu.");
+        await LockAsync(LockTable.TradeLine, [lineId], ct);
         var original = await db.TradeLines.SingleOrDefaultAsync(l => l.Id == lineId, ct)
                        ?? throw new NotFoundException("Satır");
         if (original.ReversesLineId is not null)
@@ -178,17 +232,51 @@ public sealed class AccountingService(AppDbContext db, TenantContext tenant, ICu
             reversal.Id, debit: isSale ? 0 : abs, credit: isSale ? abs : 0,
             description: $"İade: {item.Name} × {input.Quantity:0.####} — {reason}");
 
+        var released = await ReleaseExcessAllocationsAsync(original, original.GrossAmount + previous.Sum(l => l.GrossAmount) + amounts.Gross, ct);
+
         audit.Add("trade_line.reverse", "trade_line", reversal.Id,
-            new { originalLineId = original.Id, quantity = input.Quantity, reason, gross = amounts.Gross });
+            new { originalLineId = original.Id, quantity = input.Quantity, reason, gross = amounts.Gross, releasedAllocation = released });
         await db.SaveChangesAsync(ct);
         return reversal;
+    }
+
+    /// <summary>
+    /// Iade sonrasi satirin net tutari, ona dagitilmis tahsilattan kucukse fazlasi dagitimdan cikarilir
+    /// (en son dagitimdan baslayarak, eksi tutarli dagitim satiriyla). Fazla tutar tahsilatta
+    /// "dagitilmamis" (avans) olarak kalir; cari bakiyesi zaten dogrudur (X:ACC-07).
+    /// </summary>
+    private async Task<decimal> ReleaseExcessAllocationsAsync(TradeLine original, decimal netGrossAfter, CancellationToken ct)
+    {
+        var allocations = await db.PaymentAllocations.Where(a => a.TradeLineId == original.Id).ToListAsync(ct);
+        var excess = allocations.Sum(a => a.Amount) - netGrossAfter;
+        if (excess <= 0) return 0;
+
+        var released = excess;
+        var byPayment = allocations.GroupBy(a => a.PaymentId)
+            .Select(g => new { PaymentId = g.Key, Net = g.Sum(a => a.Amount), Last = g.Max(a => a.CreatedAt) })
+            .Where(x => x.Net > 0).OrderByDescending(x => x.Last).ToList();
+        foreach (var p in byPayment)
+        {
+            if (excess <= 0) break;
+            var take = Math.Min(p.Net, excess);
+            db.PaymentAllocations.Add(new PaymentAllocation
+            {
+                TenantId = original.TenantId, CreatedByUserId = user.UserId, PaymentId = p.PaymentId,
+                TradeLineId = original.Id, Amount = -take,
+            });
+            excess -= take;
+        }
+        return released;
     }
 
     // =====================================================================
     // Tahsilat / odeme ve dagitim
     // =====================================================================
 
-    public async Task<Payment> CreatePaymentAsync(PaymentInput input, CancellationToken ct)
+    public Task<Payment> CreatePaymentAsync(PaymentInput input, CancellationToken ct) =>
+        InTransactionAsync(() => CreatePaymentCoreAsync(input, ct), ct);
+
+    private async Task<Payment> CreatePaymentCoreAsync(PaymentInput input, CancellationToken ct)
     {
         var tenantId = tenant.Require();
         if (input.Amount <= 0 || !Money.HasAtMostTwoDecimals(input.Amount))
@@ -199,7 +287,7 @@ public sealed class AccountingService(AppDbContext db, TenantContext tenant, ICu
         var account = await db.CashAccounts.SingleOrDefaultAsync(a => a.Id == input.CashAccountId, ct)
                       ?? throw new NotFoundException("Kasa/banka hesabı");
         if (!account.IsActive) throw new DomainException("account_inactive", "Kasa/banka hesabı kullanım dışı.");
-        EnsureMethodMatchesAccount(input.Method, account.Kind);
+        EnsureMethodMatchesAccount(input.Direction, input.Method, account.Kind);
 
         var on = input.OccurredOn ?? Today;
         var payment = new Payment
@@ -233,14 +321,16 @@ public sealed class AccountingService(AppDbContext db, TenantContext tenant, ICu
     }
 
     /// <summary>ADR-004 S8: dagitim yeni cari hareket uretmez.</summary>
-    public async Task AllocateAsync(Guid paymentId, List<AllocationInput> allocations, CancellationToken ct)
-    {
-        var payment = await db.Payments.SingleOrDefaultAsync(p => p.Id == paymentId, ct)
-                      ?? throw new NotFoundException("Tahsilat/ödeme");
-        await AllocateInternal(payment, allocations, ct);
-        audit.Add("payment.allocate", "payment", payment.Id, new { count = allocations.Count, total = allocations.Sum(a => a.Amount) });
-        await db.SaveChangesAsync(ct);
-    }
+    public Task AllocateAsync(Guid paymentId, List<AllocationInput> allocations, CancellationToken ct) =>
+        InTransactionAsync(async () =>
+        {
+            await LockAsync(LockTable.Payment, [paymentId], ct);
+            var payment = await db.Payments.SingleOrDefaultAsync(p => p.Id == paymentId, ct)
+                          ?? throw new NotFoundException("Tahsilat/ödeme");
+            await AllocateInternal(payment, allocations, ct);
+            audit.Add("payment.allocate", "payment", payment.Id, new { count = allocations.Count, total = allocations.Sum(a => a.Amount) });
+            await db.SaveChangesAsync(ct);
+        }, ct);
 
     private async Task AllocateInternal(Payment payment, List<AllocationInput> allocations, CancellationToken ct)
     {
@@ -251,14 +341,20 @@ public sealed class AccountingService(AppDbContext db, TenantContext tenant, ICu
         if (allocations.Select(a => a.TradeLineId).Distinct().Count() != allocations.Count)
             throw new DomainException("allocation", "Aynı satır bir dağıtımda iki kez seçilemez.");
 
+        var ids = allocations.Select(a => a.TradeLineId).ToList();
+        await LockAsync(LockTable.TradeLine, ids, ct);
+
         var expectedDirection = payment.Direction == PaymentDirection.Receipt ? TradeDirection.Sale : TradeDirection.Purchase;
         var already = await db.PaymentAllocations.Where(a => a.PaymentId == payment.Id).SumAsync(a => (decimal?)a.Amount, ct) ?? 0;
         var paymentRemaining = payment.Amount - already;
 
-        var ids = allocations.Select(a => a.TradeLineId).ToList();
         var lines = await db.TradeLines.Where(l => ids.Contains(l.Id)).ToDictionaryAsync(l => l.Id, ct);
         var allocatedByLine = await db.PaymentAllocations.Where(a => ids.Contains(a.TradeLineId))
             .GroupBy(a => a.TradeLineId).Select(g => new { g.Key, Sum = g.Sum(a => a.Amount) })
+            .ToDictionaryAsync(x => x.Key, x => x.Sum, ct);
+        // Iade satirlarinin (eksi) brutu dusulur: acik tutar net ekonomik tutar uzerinden (X:ACC-07).
+        var reversedGrossByLine = await db.TradeLines.Where(l => l.ReversesLineId != null && ids.Contains(l.ReversesLineId!.Value))
+            .GroupBy(l => l.ReversesLineId!.Value).Select(g => new { g.Key, Sum = g.Sum(l => l.GrossAmount) })
             .ToDictionaryAsync(x => x.Key, x => x.Sum, ct);
 
         foreach (var a in allocations)
@@ -270,7 +366,7 @@ public sealed class AccountingService(AppDbContext db, TenantContext tenant, ICu
                 throw new DomainException("allocation", "Tahsilat yalnız aynı carinin satırlarına dağıtılabilir.");
             if (line.Direction != expectedDirection || line.ReversesLineId is not null)
                 throw new DomainException("allocation", "Bu satıra dağıtım yapılamaz.");
-            var open = line.GrossAmount - allocatedByLine.GetValueOrDefault(line.Id);
+            var open = line.GrossAmount + reversedGrossByLine.GetValueOrDefault(line.Id) - allocatedByLine.GetValueOrDefault(line.Id);
             if (a.Amount > open)
                 throw new DomainException("allocation", $"Dağıtım satırın açık tutarını ({open:N2} TL) aşıyor.");
             if (a.Amount > paymentRemaining)
@@ -289,10 +385,15 @@ public sealed class AccountingService(AppDbContext db, TenantContext tenant, ICu
     }
 
     /// <summary>ADR-004 S9: yanlis dagitim silinmez, ters dagitimla kapatilir.</summary>
-    public async Task ReverseAllocationAsync(Guid allocationId, CancellationToken ct)
+    public Task ReverseAllocationAsync(Guid allocationId, CancellationToken ct) =>
+        InTransactionAsync(() => ReverseAllocationCoreAsync(allocationId, ct), ct);
+
+    private async Task ReverseAllocationCoreAsync(Guid allocationId, CancellationToken ct)
     {
-        var alloc = await db.PaymentAllocations.SingleOrDefaultAsync(a => a.Id == allocationId, ct)
-                    ?? throw new NotFoundException("Dağıtım");
+        var paymentId = await db.PaymentAllocations.Where(a => a.Id == allocationId).Select(a => (Guid?)a.PaymentId).SingleOrDefaultAsync(ct)
+                        ?? throw new NotFoundException("Dağıtım");
+        await LockAsync(LockTable.Payment, [paymentId], ct);
+        var alloc = await db.PaymentAllocations.SingleAsync(a => a.Id == allocationId, ct);
         if (alloc.Amount < 0 || alloc.ReversesAllocationId is not null)
             throw new DomainException("allocation", "Ters dağıtımın tersi alınamaz.");
         if (await db.PaymentAllocations.AnyAsync(a => a.ReversesAllocationId == alloc.Id, ct))
@@ -310,16 +411,31 @@ public sealed class AccountingService(AppDbContext db, TenantContext tenant, ICu
         await db.SaveChangesAsync(ct);
     }
 
-    /// <summary>ADR-004 S10: hatali tahsilat ters tahsilat hareketiyle kapatilir.</summary>
-    public async Task<Payment> ReversePaymentAsync(Guid paymentId, string reason, CancellationToken ct)
+    /// <summary>
+    /// ADR-004 S10: hatali tahsilat ters tahsilat hareketiyle kapatilir. Kredi taksitine bagli odeme
+    /// iptal edilince taksit yeniden "odenmemis" sayilir (LoanService). Tahsil edilmis bir ceke bagli
+    /// tahsilat buradan iptal edilemez; cekin durumu ile tutarsizlik olur (Cek Portfoyu'nden yapilir).
+    /// </summary>
+    public Task<Payment> ReversePaymentAsync(Guid paymentId, string reason, CancellationToken ct) =>
+        InTransactionAsync(() => ReversePaymentCoreAsync(paymentId, reason, allowLinkedCheck: false, ct), ct);
+
+    /// <summary>Cek servisinin karsiliksiz akisi icin: cek durumu ayni transaction'da guncellenir.</summary>
+    internal Task<Payment> ReverseCheckPaymentAsync(Guid paymentId, string reason, CancellationToken ct) =>
+        InTransactionAsync(() => ReversePaymentCoreAsync(paymentId, reason, allowLinkedCheck: true, ct), ct);
+
+    private async Task<Payment> ReversePaymentCoreAsync(Guid paymentId, string reason, bool allowLinkedCheck, CancellationToken ct)
     {
         var why = Clean(reason) ?? throw new DomainException("reason", "İptal gerekçesi zorunlu.");
+        await LockAsync(LockTable.Payment, [paymentId], ct);
         var original = await db.Payments.SingleOrDefaultAsync(p => p.Id == paymentId, ct)
                        ?? throw new NotFoundException("Tahsilat/ödeme");
         if (original.ReversesPaymentId is not null)
             throw new DomainException("reverse_of_reverse", "Ters kaydın tersi alınamaz.");
         if (await db.Payments.AnyAsync(p => p.ReversesPaymentId == original.Id, ct))
             throw new DomainException("already_reversed", "Bu kayıt zaten iptal edilmiş.");
+        if (!allowLinkedCheck && await db.Checks.AnyAsync(c => c.PaymentId == original.Id && c.Status == CheckStatus.Collected, ct))
+            throw new DomainException("linked_check",
+                "Bu kayıt tahsil edilmiş bir çeke bağlı. Geri almak için Çek Portföyü'ndeki çek işlemlerini kullanın.");
 
         // Acik dagitimlar once geri alinir.
         var allocations = await db.PaymentAllocations.Where(a => a.PaymentId == original.Id).ToListAsync(ct);
@@ -364,7 +480,10 @@ public sealed class AccountingService(AppDbContext db, TenantContext tenant, ICu
     // Belge (elle fatura kaydi) — ADR-004, ADR-005
     // =====================================================================
 
-    public async Task<DocumentResult> EnterDocumentAsync(DocumentInput input, CancellationToken ct)
+    public Task<DocumentResult> EnterDocumentAsync(DocumentInput input, CancellationToken ct) =>
+        InTransactionAsync(() => EnterDocumentCoreAsync(input, ct), ct);
+
+    private async Task<DocumentResult> EnterDocumentCoreAsync(DocumentInput input, CancellationToken ct)
     {
         var tenantId = tenant.Require();
         var number = Clean(input.DocumentNo)?.ToUpperInvariant()
@@ -386,6 +505,7 @@ public sealed class AccountingService(AppDbContext db, TenantContext tenant, ICu
 
         var party = await RequireActiveParty(input.PartyId, ct);
         var ids = input.Links.Select(l => l.TradeLineId).ToList();
+        await LockAsync(LockTable.TradeLine, ids, ct);
         var lines = await db.TradeLines.Where(l => ids.Contains(l.Id)).ToDictionaryAsync(l => l.Id, ct);
 
         var document = new Document
@@ -455,15 +575,20 @@ public sealed class AccountingService(AppDbContext db, TenantContext tenant, ICu
     }
 
     /// <summary>ADR-004 S5: iptal stok ve cariyi degistirmez; satirlar tekrar belgelenebilir hale gelir.</summary>
-    public async Task CancelDocumentAsync(Guid documentId, string reason, CancellationToken ct)
+    public Task CancelDocumentAsync(Guid documentId, string reason, CancellationToken ct) =>
+        InTransactionAsync(() => CancelDocumentCoreAsync(documentId, reason, ct), ct);
+
+    private async Task CancelDocumentCoreAsync(Guid documentId, string reason, CancellationToken ct)
     {
         var why = Clean(reason) ?? throw new DomainException("reason", "İptal gerekçesi zorunlu.");
+        await LockAsync(LockTable.Document, [documentId], ct);
         var document = await db.Documents.Include(d => d.Links).SingleOrDefaultAsync(d => d.Id == documentId, ct)
                        ?? throw new NotFoundException("Fatura");
         if (document.Status != DocumentStatus.Issued)
             throw new DomainException("already_cancelled", "Bu fatura zaten iptal edilmiş.");
 
         var lineIds = document.Links.Where(l => l.IsActive).Select(l => l.TradeLineId).ToList();
+        await LockAsync(LockTable.TradeLine, lineIds, ct);
         var lines = await db.TradeLines.Where(l => lineIds.Contains(l.Id)).ToDictionaryAsync(l => l.Id, ct);
         foreach (var link in document.Links.Where(l => l.IsActive))
         {
@@ -500,8 +625,12 @@ public sealed class AccountingService(AppDbContext db, TenantContext tenant, ICu
     }
 
     /// <summary>Acilis bakiyesi yalniz onayla cariye yazilir (ana hafiza 3.1).</summary>
-    public async Task DecideOpeningBalanceAsync(Guid id, bool approve, string? note, CancellationToken ct)
+    public Task DecideOpeningBalanceAsync(Guid id, bool approve, string? note, CancellationToken ct) =>
+        InTransactionAsync(() => DecideOpeningBalanceCoreAsync(id, approve, note, ct), ct);
+
+    private async Task DecideOpeningBalanceCoreAsync(Guid id, bool approve, string? note, CancellationToken ct)
     {
+        await LockAsync(LockTable.OpeningBalance, [id], ct);
         var ob = await db.OpeningBalances.SingleOrDefaultAsync(o => o.Id == id, ct)
                  ?? throw new NotFoundException("Açılış bakiyesi");
         if (ob.Status != OpeningBalanceStatus.Pending)
@@ -531,6 +660,8 @@ public sealed class AccountingService(AppDbContext db, TenantContext tenant, ICu
     {
         if (delta < 0)
         {
+            // Ayni urunden es zamanli iki cikis stok sinirini birlikte asmasin diye urun satiri kilitlenir.
+            await LockAsync(LockTable.Item, [item.Id], ct);
             var current = await StockOnHandAsync(item.Id, ct);
             if (current + delta < 0 && !user.IsInRole(Roles.Yonetici))
                 throw new DomainException("negative_stock",
@@ -577,18 +708,25 @@ public sealed class AccountingService(AppDbContext db, TenantContext tenant, ICu
                 : "Bu cari tedarikçi olarak tanımlı değil.");
     }
 
-    private static void EnsureMethodMatchesAccount(PaymentMethod method, CashAccountKind kind)
+    /// <summary>
+    /// Yon–arac–hesap matrisi (S-05). Musteri kart tahsilati yalniz POS'a; sirket kredi kartiyla yalniz odeme
+    /// yapilir. Cek kurali ADR-007'ye kadar mevcut haliyle korunur.
+    /// </summary>
+    internal static void EnsureMethodMatchesAccount(PaymentDirection direction, PaymentMethod method, CashAccountKind kind)
     {
+        var receipt = direction == PaymentDirection.Receipt;
         var ok = method switch
         {
             PaymentMethod.Cash => kind == CashAccountKind.Cash,
-            // Pos: musteriden POS tahsilati. CreditCard: sirketin kendi kredi kartiyla odeme (surum 2 hazirlik notu madde 3).
-            PaymentMethod.Card => kind is CashAccountKind.Pos or CashAccountKind.CreditCard,
             PaymentMethod.Transfer => kind == CashAccountKind.Bank,
+            PaymentMethod.Card => receipt ? kind == CashAccountKind.Pos : kind == CashAccountKind.CreditCard,
             PaymentMethod.Check => kind is CashAccountKind.Bank or CashAccountKind.Cash,
             _ => false,
         };
-        if (!ok) throw new DomainException("account_kind", "Ödeme aracı ile seçilen kasa/banka hesabı uyuşmuyor.");
+        if (!ok)
+            throw new DomainException("account_kind", receipt
+                ? "Tahsilat aracı ile hesap uyuşmuyor. Nakit → kasa, havale → banka, kart → POS, çek → banka veya kasa."
+                : "Ödeme aracı ile hesap uyuşmuyor. Nakit → kasa, havale → banka, kart → şirket kredi kartı, çek → banka veya kasa.");
     }
 
     public static string MethodName(PaymentMethod m) => m switch

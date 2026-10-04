@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using UUSport.Api.Data;
@@ -81,6 +82,11 @@ public static class ImportEndpoints
         });
     }
 
+    /// <summary>.xlsx aslinda bir zip'tir; sikistirma orani anormal yuksek bir dosya (zip bomb) 15 MB
+    /// sinirini gecmeden bellekte devasa buyusun ac edebilir (S-19, X:SEC-06). Acmadan once merkezi
+    /// dizinden ac sikistirilmamis toplam boyut kontrol edilir.</summary>
+    private const long MaxUncompressedBytes = 200 * 1024 * 1024;
+
     private static async Task<byte[]> Read(IFormFile file)
     {
         if (file.Length == 0) throw new DomainException("file", "Dosya boş.");
@@ -89,6 +95,27 @@ public static class ImportEndpoints
             throw new DomainException("file", "Yalnız .xlsx biçimindeki Excel dosyaları desteklenir.");
         using var ms = new MemoryStream();
         await file.CopyToAsync(ms);
-        return ms.ToArray();
+        var bytes = ms.ToArray();
+        CheckNotZipBomb(bytes);
+        return bytes;
+    }
+
+    private static void CheckNotZipBomb(byte[] bytes)
+    {
+        try
+        {
+            using var zip = new ZipArchive(new MemoryStream(bytes, writable: false), ZipArchiveMode.Read);
+            long total = 0;
+            foreach (var entry in zip.Entries)
+            {
+                total += entry.Length;
+                if (total > MaxUncompressedBytes)
+                    throw new DomainException("file", "Dosya içeriği açıldığında aşırı büyük olacak görünüyor; reddedildi.");
+            }
+        }
+        catch (InvalidDataException)
+        {
+            throw new DomainException("file", "Dosya okunamadı. Yalnız .xlsx biçimindeki Excel dosyaları desteklenir.");
+        }
     }
 }

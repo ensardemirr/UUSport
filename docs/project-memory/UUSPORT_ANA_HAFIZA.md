@@ -1,8 +1,8 @@
 # UU Sport Ana Hafiza
 
-**Surum:** 2.1  
+**Surum:** 2.8  
 **Olusturma tarihi:** 23 Eylul 2026  
-**Son guncelleme:** 26 Eylul 2026  
+**Son guncelleme:** 27 Eylul 2026  
 **Ilk yazar:** Codex  
 **Durum:** Surum 0.1 gelistirme ortaminda calisiyor; kullanici denemesi bekleniyor. Canli kurulum yok.
 
@@ -396,6 +396,36 @@ dedi. Surum 0.1 yazilirken Claude Code su kararlari verdi; itiraz edilirse degis
   cikar; kredi taksit tablosu (`finance.loan`/`loan_installment`) ve cek portfoyu
   (`finance.check_note`, seri giris destekli) eklendi; Excel sablon indirme eklendi.
   Karisik stok+hizmet fatura zaten calisiyordu, kod degisikligi gerekmedi.
+- 26.09.2026, kullanicinin deneme sirasinda aklina gelen iki geri bildirim islendi:
+  sol menu artik daraltilabilir/genisletilebilir gruplara ayrildi (`<details>`/`<summary>`,
+  acik/kapali durumu tarayicida `localStorage` ile hatirlanir; "Genel Bakis" grup disinda
+  sabit ustte kalir); cari detay sayfasina ayri bir **"Ekstre Al"** dugmesi eklendi, acilan
+  pencerede kucuk bir **"Resmi Cari"** tik kutusu var — tik kapaliyken tum hareketler ve
+  her satirda "Resmi mi?" rozeti gorunur, tik aciliyken yalniz muhasebeye gonderilmis
+  (tam belgelenmis satis/alis satiri veya belgelenmis bir satira dagitilmis tahsilat)
+  kayitlar kalir. Pencere `window.print()` ile ekranda gorundugu haliyle yazdirilir/PDF
+  kaydedilir (Windows yazdirma diyalogunda "PDF olarak kaydet"). "Resmi" tanimi backend'de
+  `AccountingQueries.LedgerAsync` icinde `LedgerRow.IsOfficial` olarak hesaplanir, ayri bir
+  alan/tablo eklenmez (ADR-004 modeli degismedi). 5 yeni test (`LedgerOfficialFlagTests`)
+  ile dogrulandi; toplam 53 test geciyor.
+  - `[TEKNIK NOT]` Native `<dialog>` tarayicinin "ust katmaninda" calisir ve bu katman
+    Chromium'da guvenilir sekilde yazdirilmiyor (bos sayfa cikiyordu). Cozum: ekstre icerigi
+    pencere acikken `createPortal` ile ayrica `document.body`'ye kopyalanir; ekranda gizli
+    kalir, yalniz `@media print`'te gorunur ve gercek `<dialog>` o an tamamen gizlenir.
+    Ayrica `html/body/#root/.shell`'in `height:100%`/`min-height:100%` kurallari yazdirmada
+    sifirlanmazsa portal sayfanin altina itilip yine bos gorunuyordu; bunlar da print
+    medyasinda `height:auto` yapildi. Ileride baska bir pencerede benzer "ekranda gordugun
+    gibi yazdir" ozelligi eklenirse ayni portal deseni kullanilmali.
+- `[KULLANICI KARARI]` 26.09.2026: girisde her seferinde TOTP kodu yazma surtunmesini
+  azaltmak icin MFA **kapatilmadi** (guvenlik acigi olusturmamak icin); bunun yerine
+  Identity'nin "bu tarayicidan hatirla" ozelligi acildi
+  (`SignInManager.TwoFactorAuthenticatorSignInAsync(..., rememberClient: true)`).
+  Kod bir kez dogrulanan tarayicida `uusport.mfa-remember` cerezi ile 30 gun boyunca
+  tekrar sorulmaz; farkli tarayici/cihazda veya cerez silinince yine sorulur. Ilk deneme
+  olarak MFA'yi tumuyle kapatan bir `Security:RequireMfa` anahtari yazilmisti; bu degisiklik
+  Claude Code'un kendi guvenlik siniflandiricisi tarafindan "guvenligi zayiflatiyor" diye
+  derlemeden once engellendi ve kullaniciya soruldu; kullanici "tarayiciyi hatirla" secenegini
+  onayladi, kapatma denemesi tamamen geri alindi.
 - `[RISK]` Kredi taksit odemesi ve cek tahsilati, kredi vereni/cariyi temsil eden
   Party'ye normal bir `Payment(Disbursement/Receipt)` yazar (ADR-004 modeli
   degistirilmedi, mevcut kod yeniden kullanildi). Bu Party'nin "cari bakiyesi" bu
@@ -593,12 +623,19 @@ Ayrintili standart:
 2. ~~MVP kapsami~~ Tamamlandi: ADR-005.
 3. ~~Sema, migration, uygulama iskeleti ve surum 0.1~~ Tamamlandi: 26.09.2026 (bolum 5.5).
 4. Kullanici surum 0.1'i sentetik veriyle dener; geri bildirime gore duzeltme.
-5. Gercek `Sayfa1 (2)` dosyasi kullanici tarafindan, kendi makinesinde aktarilir
+5. `[KULLANICI KARARI]` 26.09.2026: **yedekleme erken alinacak**, sona birakilmayacak.
+   PostgreSQL gelistirme kumesi icin gunluk tam yedek + gercek geri yukleme provasi
+   (operasyon proseduru bolum 10) gercek veri gelmeden, sentetik veriyle simdi
+   kurulur ve test edilir. HTTPS/guvenlik duvari ile ayni asamaya (coklu bilgisayar
+   erisimi) bagli DEGILDIR; tek bilgisayarda da yapilabilir ve yapilmalidir.
+6. Gercek `Sayfa1 (2)` dosyasi kullanici tarafindan, kendi makinesinde aktarilir
    (gercek veri yapay zeka araclarina verilmez). Once kaynak dosyalar repo disina alinir (K2).
-6. Mali musavirle acik konular: stopajli belgeler, fatura suresi, acilis bakiyesi kaynagi.
-7. Canli hazirlik: yerel ag HTTPS (ic sertifika otoritesi), yedekleme, canli paket
-   (publish + manifest + SHA256 + kurulum/geri alma betikleri), temiz makinede prova.
-8. Canli ortam belli oldugunda ortam envanteri, kurulum ve release planini doldur.
+7. Mali musavirle acik konular: stopajli belgeler, fatura suresi, acilis bakiyesi kaynagi.
+8. Coklu bilgisayardan erisim acilirken: yerel ag HTTPS (ic sertifika otoritesi) ve
+   gerekirse guvenlik duvari kurali (guvenlik standardi bolum 6, 13).
+9. Canli paket (publish + manifest + SHA256 + kurulum/geri alma betikleri), temiz
+   makinede prova.
+10. Canli ortam belli oldugunda ortam envanteri, kurulum ve release planini doldur.
 
 ## 12. Claude Code ve Codex Ortak Calisma Protokolu
 
@@ -625,7 +662,14 @@ Ayrintili standart:
 
 | Tarih | Surum | Yazan | Degisiklik |
 |---|---:|---|---|
-| 26.09.2026 | 2.1 | Claude Code | Kullanicinin 4 geri bildirimi islendi (surum 2 hazirlik notu): cari/urun hesap kodu alani, kredi karti/kredi hesap hiyerarsisi, kredi taksit tablosu, cek portfoyu (seri giris dahil), Excel sablon indirme; karisik stok+hizmet fatura zaten calisiyordu. Sifir veritabaninda migration zincirini test ederken gercek bir hata bulundu ve duzeltildi: `MigrationSecurity` artik migration basina dondurulmus tablo listesi kullaniyor. 48 test + tam HTTP duman testi gecti; canli gelistirme verisi korunarak surum yeniden baslatildi. |
+| 27.09.2026 | 2.8 | Claude Code | `[KULLANICI KARARI]` M1'e gecildi (Sonnet 5, orta efor). **S-12** kurulum ucu tek kullanimlik jetonla kilitlendi (`SetupTokenService`, sunucu logunda bir kez gorunur). **S-13** giris/cikis/kilit/MFA basari-basarisiz olaylari IP ile denetim kaydina yaziliyor (`AuditEvent.IpAddress`, yeni sutun). **S-14** `EndpointAuthorizationTests`: calisan uygulamada `EndpointDataSource`'tan TUM `/api` uclarini kesfedip oturumsuz istekte 401, Muhasebe rolunde yonetici-ozel uclarda 403 dogrular; elle bir admin-only korumasi silinerek testin gercekten kirmizi oldugu gosterildi (append-only testiyle ayni disiplin). **S-15** MFA sertlestirme: TOTP anahtari/kurtarma kodlari artik Data Protection ile sifreli saklaniyor (eski duz metin de okunabilir kalir, sonraki yazimda sifrelenir); kurtarma kodlari (10 adet) MFA acilinca gosteriliyor, giriste kurtarma kodu secenegi var; sunucu CLI'sinda `reset-mfa --user=` acil durum sifirlamasi (yalniz makine erisimi olanlar); oturum hareketsizlik zaman asimi 8 saatten 30 dakikaya cekildi (kaydirmali); tek yonetici uyarisi (`/api/auth/me.onlyAdmin`, arayuzde banner); anonim `/api/health` artik surum/migration bilgisi vermiyor. **S-19** Excel aktariminda telefon yoksa/eslesmezse artik SADECE isme bakarak mevcut cariye otomatik birlesme YAPILMAZ (X:DATA-01, iki test ile kanitlandi); zip bomb korumasi (sikistirilmamis boyut sinirlanir, acmadan once kontrol edilir). **S-11** kismi: HSTS eklendi (duz HTTP'de zararsiz, HTTPS acilinca aktif). **S-17** `scripts/ci.ps1` uygulandi ve calistirildi: derleme (uyari=hata), tum testler, gizli bilgi taramasi, gercek veri taramasi, NuGet/npm acik taramasi; `-Fast` bayragi + `scripts/install-git-hooks.ps1` (commit-oncesi, elle kurulur). **S-10** `scripts/backup.ps1` + `scripts/restore-test.ps1` yazildi VE uctan uca calistirilarak dogrulandi (dogru parolada basarili, yanlis parolada temiz basarisizlik): parola tabanli AES-256 (DPAPI DEGIL - felaket kurtarma icin sunucudan bagimsiz olmali), `postgres` superuser ile (uusport_owner FORCE RLS altinda kendi verisini bile goremez). Zamanlanmis gorev kurulumu (`install-scheduled-tasks.ps1`) YAZILDI ama calistirilmadi - yurt ici yedek konumu ve parola saklama karari kullanicidan bekliyor. 72 test geciyor. **Ertelenen (henuz baslanmadi):** S-16 (gercek Excel dosyasinin proje disina tasinmasi - kullanici eylemi), S-18 (Windows servisi + release paketleme betikleri), S-11'in kalani (fiziksel HTTPS sertifikasi, guvenlik duvari, BitLocker - sunucu donanimi belli olunca). |
+| 27.09.2026 | 2.7 | Claude Code | `[KULLANICI KARARI]` Sentez plani onaylandi, M0'dan baslandi; "Resmi Cari" dugmesi **"Muhasebe Gorunumu"** oldu, "Gayri resmi" metni kaldirildi ("Belgelendi / Belge bekliyor"); gelistirme veritabanindaki deneme kayitlari kullanici beyaniyla tamamen uydurma. **M0 tamamlandi (S-01..S-08):** `20260927143530_FixAppendOnlyGrants` migration'i append-only yetki hatasini onardi (uusport, uusport_test uygulandi); `SchemaGuardTests` her kosuda sifir veritabani kurup RLS/FORCE/politika ve append-only yetkilerini katalogdan dogrular (duzeltme kapaliyken kirmizi oldugu gosterildi); finansal komutlar tek transaction + `FOR UPDATE` kilidiyle (kilitsizken es zamanli testler 3/3 kirmizi, kilitle yesil); iade sonrasi acik tutar net tutardan, fazla dagitim avansa doner; iptal edilen odemeye bagli kredi taksiti yeniden acilir; kredi/cek gerceklesme tarihi vade degil islem tarihi; yon–arac–hesap matrisi (musteri kart tahsilati yalniz POS); tahsil edilmis ceke bagli tahsilat genel iptalle geri alinamaz; koyu+yuksek kontrast duzeltildi; arayuzden gelistirici dili kaldirildi; muhasebe gorunumunde tutarsiz yuruyen bakiye gizlendi (kalici cozum M2/S-21); surum degisince "Yenile" bandi (`X-App-Build`, `wwwroot/version.json`). 69 test geciyor; ekran goruntusu ve PDF ile dogrulandi. Siradaki: M1 (yedek, HTTPS, kurulum jetonu, giris denetimi, CI...). |
+| 27.09.2026 | 2.6 | Claude Code | Dis danisma raporlari geldi (Claude: `UUSPORT_DANISMA_CLAUDE_2026-09-27.md`, Codex/GPT: `UUSPORT_DANISMA_CODEX_2026-09-27.md`) ve degerlendirildi: `docs/reviews/UUSPORT_DANISMA_SENTEZ_2026-09-27.md` (`[ONERI]`, birlesik is listesi M0-M8, ADR adaylari 006-017, KU/MM/AV sorulari). **`[RISK]` dogrulanan P0 hata:** sifirdan kurulan veritabaninda `uusport_app` rolu append-only tablolarda (ledger_entry, stock_movement, audit_event, payment_allocation) UPDATE yetkisine sahip; 2. migration'daki `ApplySchemaGrants` yetkiyi geri veriyor. `uusport`/`uusport_test` etkilenmemis (duzeltme oncesi hali uygulanmisti); testler bu yuzden hatayi gizledi. Canli kurulumdan once S-01 ile duzeltilecek. Ayrica dogrulandi: iade sonrasi acik tutar hatasi, taksit odemesi iptalinde taksit odenmis kaliyor, koyu+yuksek kontrast temada ikincil metin 1,49:1. Ana hafizada "gercek veri korundu" ifadeleri "gelistirme veritabanindaki deneme kayitlari" olarak duzeltildi (Codex notu). |
+| 27.09.2026 | 2.5 | Claude Code | Logo Tiger 3 arastirmasi yapildi (kredi karti Logo'da ayri banka hesabi turu; kural bazli muhasebe baglanti kodlari; 6 maliyet yontemi; GMS.NET'in C# API'si var). Kullanici istegiyle dis yapay zekalara (Claude Fable 5.1, GPT) verilecek strateji danisma promptu yazildi: `docs/reviews/DIS_YZ_STRATEJI_DANISMA_PROMPTU_2026-09-27.md` + sentetik veri ekran goruntuleri `docs/reviews/dis-yz-ekleri-2026-09-27/`. Ciktilar (`UUSPORT_DANISMA_<ARAC>_2026-09-27.md`) Claude Code'a verilip degerlendirilecek; o zamana kadar yeni ozellik baslatilmaz. Not: `CLAUDE.md`'deki "25.09 denetim icin ara" ifadesi guncel degil, kullanici onayiyla temizlenecek. |
+| 26.09.2026 | 2.4 | Claude Code | Ekstre penceresi uzerinde ince ayar: "Ekstre Al" dugmesi cari sayfasinin ust islem cubugu­na tasindi; "Resmi Cari" tik kutusu artik yazdirma/PDF ciktisinda gorunmuyor (filtre durumu dipnotta yaziyor). Ayrica yeni bir sayfa eklendi: **Hesap Hareketleri** (`/hesap-hareketleri`, Gunluk is grubunda) — tum carilerin cari hareketlerini tek listede gosterir, cari/tarih araligi/"Resmi Cari" filtreleriyle. Backend'e `AccountingQueries.AllLedgerAsync` ve `GET /api/ledger` eklendi (mevcut `LedgerRow`/`IsOfficial` mantigi yeniden kullanildi, yeni tablo yok). 53 test hala geciyor; gelistirme surecine yuklendi, gelistirme veritabanindaki deneme kayitlari korundu. |
+| 26.09.2026 | 2.3 | Claude Code | Kullanicinin deneme sirasindaki iki geri bildirimi islendi: sol menu daraltilabilir gruplara ayrildi; cari detayina "Ekstre Al" penceresi eklendi ("Resmi Cari" tik filtresi + ekranda gorundugu gibi yazdir/PDF, `LedgerRow.IsOfficial` hesabi, 5 yeni test). Ayrica "girisde MFA kodu kaldirilsin mi" sorusuna, guvenligi zayiflatmadan "tarayiciyi 30 gun hatirla" (`rememberClient: true`) ile cozum uretildi; MFA'yi tumden kapatan ilk deneme guvenlik siniflandiricisi tarafindan engellenip geri alindi. Gelistirme surecine yeniden derlenmis surum yuklendi, gelistirme veritabanindaki deneme kayitlari korundu. |
+| 26.09.2026 | 2.2 | Claude Code | HTTPS ve guvenlik duvarinin ne zaman/nasil gerekecegi acildandi (kullanici sordu, kod degisikligi yok). Yedekleme kullanici karariyla oncelik sirasinda one alindi: coklu bilgisayar erisiminden bagimsiz, sentetik veriyle simdi kurulup test edilecek (bolum 11). |
+| 26.09.2026 | 2.1 | Claude Code | Kullanicinin 4 geri bildirimi islendi (surum 2 hazirlik notu): cari/urun hesap kodu alani, kredi karti/kredi hesap hiyerarsisi, kredi taksit tablosu, cek portfoyu (seri giris dahil), Excel sablon indirme; karisik stok+hizmet fatura zaten calisiyordu. Sifir veritabaninda migration zincirini test ederken gercek bir hata bulundu ve duzeltildi: `MigrationSecurity` artik migration basina dondurulmus tablo listesi kullaniyor. 48 test + tam HTTP duman testi gecti; gelistirme veritabanindaki deneme kayitlari korunarak surum yeniden baslatildi. |
 | 26.09.2026 | 2.0 | Claude Code | Surum 0.1 gelistirme ortaminda calisir hale getirildi: veritabani ve roller, EF Core migration, RLS, API, React arayuz, Excel aktarimi, 31 test, duman testi, masaustu kisayolu. Kullanicinin yetki devriyle verilen uygulama kararlari (5.6) ve bilinen sinirlar (5.7) kaydedildi; K3 duzeltildi (PostgreSQL gelistirme makinesinde calisiyor, `::1` eklendi); klasor agaci yenilendi (D1); migration araci EF Core. |
 | 26.09.2026 | 1.9 | Claude Code | ADR-005 (ilk surum kapsami, elle fatura, alis/gider icerde, aidat disarida) ve guvenlik standardi onaylandi; bolum 0, 3.3 ve 4.2 guncellendi; alan adi olmadigi kaydedildi. |
 | 26.09.2026 | 1.8 | Claude Code | ADR-002 (para/yuvarlama/KDV), ADR-003 (harmanlama), ADR-004 (cari hareket modeli, K1) onaylandi; bolum 0, 4.4 ve 8.3'e kayit ve baglanti eklendi. Standart, akis belgesi ve mockup guncellemeleri beklemede. |

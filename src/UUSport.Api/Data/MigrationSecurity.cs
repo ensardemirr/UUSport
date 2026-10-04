@@ -31,8 +31,28 @@ public static class MigrationSecurity
         ["finance.ledger_entry", "inventory.stock_movement", "audit.audit_event", "finance.payment_allocation"];
 
     /// <summary>
-    /// Sema bazli yetkiler. "ALL TABLES IN SCHEMA" o an semada var olan tablolara uygulanir;
-    /// migration sirasina gore her zaman guvenlidir, tekrar calistirilabilir.
+    /// 20260927143530_FixAppendOnlyGrants itibariyla var olan degistirilemez tablolar. Dondurulmustur:
+    /// yeni append-only tablo ekleyen migration bu listeyi DEGISTIRMEZ, kendi listesini gecer.
+    /// </summary>
+    public static readonly string[] AppendOnlyTablesAsOf20260927 =
+        ["finance.ledger_entry", "inventory.stock_movement", "audit.audit_event", "finance.payment_allocation"];
+
+    /// <summary>
+    /// Yeni migration'lar icin: sema yetkilerini verir ve ardindan verilen degistirilemez tablolardan
+    /// UPDATE/DELETE/TRUNCATE'i yeniden alir. <paramref name="appendOnlyTables"/> o migration aninda var olan
+    /// TUM append-only tablolari icermelidir (ör. AppendOnlyTablesAsOf20260927 + migration'in yenileri).
+    /// </summary>
+    public static void ApplySchemaGrants(MigrationBuilder mb, string[] appendOnlyTables)
+    {
+        ApplySchemaGrants(mb);
+        RevokeUpdateDelete(mb, appendOnlyTables);
+    }
+
+    /// <summary>
+    /// Sema bazli yetkiler. "ALL TABLES IN SCHEMA" o an semada var olan tablolara uygulanir.
+    /// DIKKAT: append-only tablolar dahil her tabloya UPDATE verir. Yalniz gecmis migration'lar icin
+    /// korunur; yeni migration'lar iki parametreli asiri yuklemeyi kullanir (20260926 hatasi: bu cagri
+    /// append-only korumasini sifir veritabaninda geri aciyordu; SchemaGuardTests bunu yakalar).
     /// </summary>
     public static void ApplySchemaGrants(MigrationBuilder mb)
     {

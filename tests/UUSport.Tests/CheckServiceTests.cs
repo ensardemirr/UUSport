@@ -57,25 +57,30 @@ public sealed class CheckServiceTests
     }
 
     [Fact]
-    public async Task Tahsil_MusteriCekiIcin_OtomatikTahsilatUretir_VadeTarihindeSayilir()
+    public async Task Tahsil_MusteriCekiIcin_OtomatikTahsilatUretir_GerceklesmeTarihindeSayilir()
     {
         await using var w = await TestWorld.CreateAsync();
         var veli = await w.PartyAsync("Örnek Veli");
         var bank = await w.AccountAsync(CashAccountKind.Bank);
         var checks = await w.Checks.CreateAsync(new CreateChecksInput(veli.Id, CheckDirection.Received, "Akbank",
-            [new("000300", new DateOnly(2026, 10, 15), 2500m)]), default);
+            [new("000300", new DateOnly(2026, 10, 15), 2500m), new("000301", new DateOnly(2026, 10, 15), 1000m)]), default);
         var check = checks[0];
 
         await w.Checks.SubmitForCollectionAsync(check.Id, default);
-        await w.Checks.CollectAsync(check.Id, new CollectInput(bank.Id, null), default);
+        // Gecikmeli tahsil: vade 15.10, banka 01.11'de gecirdi. Gerceklesen tarih vade degil islem tarihidir (X:CSH-06).
+        await w.Checks.CollectAsync(check.Id, new CollectInput(bank.Id, new DateOnly(2026, 11, 1)), default);
 
-        // Nakit girisi vade tarihinde sayilir (spesifikasyon O37); OccurredOn verilmedigi icin vade kullanilir.
         // Onceden borc yoktu; tahsilat Receipt oldugu icin bakiye avans gibi eksiye doner (S8 ile ayni kural).
         Assert.Equal(-2500m, await w.BalanceAsync(veli.Id));
         var ledger = await w.Queries.LedgerAsync(veli.Id, default);
         var entry = Assert.Single(ledger);
-        Assert.Equal(new DateOnly(2026, 10, 15), entry.OccurredOn);
+        Assert.Equal(new DateOnly(2026, 11, 1), entry.OccurredOn);
         Assert.Equal(2500m, entry.Credit);
+
+        // Tarih verilmezse vade degil bugun kullanilir.
+        await w.Checks.CollectAsync(checks[1].Id, new CollectInput(bank.Id, null), default);
+        var second = (await w.Queries.LedgerAsync(veli.Id, default)).Single(e => e.Credit == 1000m);
+        Assert.Equal(DateOnly.FromDateTime(DateTime.Now), second.OccurredOn);
 
         var rows = await w.Checks.ListAsync(null, default);
         var row = rows.Single(r => r.Id == check.Id);

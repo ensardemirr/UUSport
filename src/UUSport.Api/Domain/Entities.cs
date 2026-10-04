@@ -376,4 +376,6 @@ public sealed class AuditEvent
     public Guid? TargetId { get; set; }
     public string CorrelationId { get; set; } = string.Empty;
     public string? Summary { get; set; }
+    /// <summary>Giris/cikis/kilit gibi olaylarda istek IP'si (guvenlik denetimi S-13).</summary>
+    public string? IpAddress { get; set; }
 }

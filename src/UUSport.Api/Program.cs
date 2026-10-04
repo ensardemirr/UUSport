@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http.Features;
@@ -47,10 +48,47 @@ if (args.Contains("migrate"))
 }
 
 // ---------------------------------------------------------------------------
+// reset-mfa modu: acil durum (S-15) - hicbir yonetici giris yapamiyorsa (telefon/kurtarma
+// kodu kaybi) sunucuya fiziksel/RDP erisimi olan biri bu komutla bir kullanicinin iki adimli
+// dogrulamasini sifirlar. Web ucundan YAPILAMAZ; yalniz makine erisimi olan kisi calistirabilir.
+// ---------------------------------------------------------------------------
+if (args.Contains("reset-mfa"))
+{
+    var userName = args.FirstOrDefault(a => a.StartsWith("--user=", StringComparison.Ordinal))?["--user=".Length..];
+    if (string.IsNullOrWhiteSpace(userName))
+    {
+        Console.WriteLine("Kullanim: UUSport.Api.exe reset-mfa --user=<kullanici_adi>");
+        return;
+    }
+    var options = new DbContextOptionsBuilder<AppDbContext>()
+        .UseNpgsql(dbOptions.BuildConnectionString(asOwner: true))
+        .UseSnakeCaseNamingConvention()
+        .Options;
+    await using var resetDb = new AppDbContext(options);
+    var normalized = userName.Trim().ToUpperInvariant();
+    var target = await resetDb.Users.SingleOrDefaultAsync(u => u.NormalizedUserName == normalized);
+    if (target is null)
+    {
+        Console.WriteLine($"Kullanici bulunamadi: {userName}");
+        return;
+    }
+    target.TwoFactorEnabled = false;
+    target.LockoutEnd = null;
+    target.AccessFailedCount = 0;
+    target.SecurityStamp = Guid.NewGuid().ToString("N");
+    resetDb.UserTokens.RemoveRange(resetDb.UserTokens.Where(t => t.UserId == target.Id));
+    await resetDb.SaveChangesAsync();
+    Console.WriteLine($"'{userName}' icin iki adimli dogrulama sifirlandi ve tum oturumlar kapatildi. Sonraki giriste yeniden kurulum istenecek.");
+    return;
+}
+
+// ---------------------------------------------------------------------------
 // Servisler
 // ---------------------------------------------------------------------------
 var appConnection = dbOptions.BuildConnectionString(asOwner: false);
 builder.Services.AddSingleton(dbOptions);
+builder.Services.AddSingleton<AppBuildInfo>();
+builder.Services.AddSingleton<SetupTokenService>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<TenantContext>();
 builder.Services.AddScoped<TenantConnectionInterceptor>();
@@ -83,10 +121,24 @@ builder.Services.ConfigureApplicationCookie(o =>
     o.Cookie.HttpOnly = true;
     o.Cookie.SameSite = SameSiteMode.Strict;
     o.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
-    o.ExpireTimeSpan = TimeSpan.FromHours(8);
+    // Hareketsizlik zaman asimi (S-15): 30 dk islem yapilmazsa oturum kapanir. Kaydirmali oldugu
+    // icin aktif kullanimda kesinti olmaz; muhasebe verisi acik ekranda uzun sure yalniz kalmaz.
+    o.ExpireTimeSpan = TimeSpan.FromMinutes(30);
     o.SlidingExpiration = true;
     o.Events.OnRedirectToLogin = ctx => { ctx.Response.StatusCode = 401; return Task.CompletedTask; };
     o.Events.OnRedirectToAccessDenied = ctx => { ctx.Response.StatusCode = 403; return Task.CompletedTask; };
+});
+
+// "Bu tarayicidan hatirla" (AuthEndpoints /login/mfa, rememberClient:true): TOTP kurulumu bir
+// kere yapilir, ayni tarayicida 30 gun boyunca kod tekrar sorulmaz. MFA'yi kapatmaz; yalniz
+// gunluk giristeki tekrar kod yazma surtunmesini azaltir.
+builder.Services.Configure<CookieAuthenticationOptions>(IdentityConstants.TwoFactorRememberMeScheme, o =>
+{
+    o.Cookie.Name = "uusport.mfa-remember";
+    o.Cookie.HttpOnly = true;
+    o.Cookie.SameSite = SameSiteMode.Strict;
+    o.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+    o.ExpireTimeSpan = TimeSpan.FromDays(30);
 });
 
 builder.Services.AddScoped<IAuthorizationHandler, MfaEnabledHandler>();
@@ -132,6 +184,11 @@ builder.Services.AddScoped<ImportService>();
 // ---------------------------------------------------------------------------
 var app = builder.Build();
 
+// HTTPS/LAN (S-11): sunucu bir ic CA sertifikasiyla HTTPS'e gectiginde tarayicilar bu basligi
+// hatirlar ve bir daha HTTP'ye dusmez. Duz HTTP uzerinden gonderilen bu baslik tarayicilarca
+// yoksayilir (RFC 6797); yani gelistirme ortaminda (henuz HTTP) zararsizdir, HTTPS acilinca aktif olur.
+if (!app.Environment.IsDevelopment()) app.UseHsts();
+
 app.UseMiddleware<SecurityMiddleware>();
 app.UseMiddleware<ErrorHandlingMiddleware>();
 app.UseDefaultFiles();
@@ -149,8 +206,11 @@ app.Use(async (ctx, next) =>
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapGet("/api/health", async (AppDbContext db, CancellationToken ct) =>
+// Anonim erisimde yalniz "ok" doner (izleme/LAN kontrolu icin); surum ve migration bilgisi
+// oturum acmis personele ayrilir (S-15, X:SEC-10 - surum ifsasi taramayi kolaylastirir).
+app.MapGet("/api/health", async (HttpContext http, AppDbContext db, CancellationToken ct) =>
 {
+    if (http.User.Identity?.IsAuthenticated != true) return Results.Ok(new { status = "ok" });
     var level = (await db.Database.GetAppliedMigrationsAsync(ct)).LastOrDefault();
     return Results.Ok(new { status = "ok", version = typeof(Program).Assembly.GetName().Version?.ToString(), migration = level });
 });

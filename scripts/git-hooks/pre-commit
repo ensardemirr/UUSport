@@ -1,0 +1,4 @@
+#!/bin/sh
+# UU Sport pre-commit kancasi (S-17): hizli derleme + gizli bilgi/gercek veri taramasi.
+# Kurulum: powershell -File scripts/install-git-hooks.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File "$(git rev-parse --show-toplevel)/scripts/ci.ps1" -Fast

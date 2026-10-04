@@ -80,7 +80,7 @@ public static class ReportEndpoints
             var q = db.AuditEvents.AsQueryable();
             if (!string.IsNullOrWhiteSpace(action)) q = q.Where(a => a.Action.StartsWith(action));
             var rows = await q.OrderByDescending(a => a.OccurredAt).Take(Math.Clamp(take ?? 200, 1, 1000))
-                .Select(a => new { a.Id, a.OccurredAt, a.UserName, a.Action, a.TargetType, a.TargetId, a.Summary })
+                .Select(a => new { a.Id, a.OccurredAt, a.UserName, a.Action, a.TargetType, a.TargetId, a.Summary, a.IpAddress })
                 .ToListAsync(ct);
             return Results.Ok(rows);
         });

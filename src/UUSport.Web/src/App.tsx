@@ -6,7 +6,7 @@ import { LoginPage, MfaSetupPage, SetupPage } from './pages/AuthPages'
 import { ImportPage } from './pages/ImportPage'
 import { ChecksPage, LoansPage } from './pages/CashDetailPages'
 import { PartyDetailPage, PartyListPage } from './pages/PartyPages'
-import { AuditPage, CashPage, CatalogPage, DashboardPage, DocumentsPage, PendingPage, ReportsPage, UsersPage } from './pages/WorkPages'
+import { AuditPage, CashPage, CatalogPage, DashboardPage, DocumentsPage, LedgerListPage, PendingPage, ReportsPage, UsersPage } from './pages/WorkPages'
 
 function Gate() {
   const { me, needsSetup, isAdmin } = useAuth()
@@ -23,6 +23,7 @@ function Gate() {
         <Route path="cariler/:id" element={<PartyDetailPage />} />
         <Route path="bekleyen" element={<PendingPage />} />
         <Route path="faturalar" element={<DocumentsPage />} />
+        <Route path="hesap-hareketleri" element={<LedgerListPage />} />
         <Route path="katalog" element={<CatalogPage />} />
         <Route path="kasa-banka" element={<CashPage />} />
         <Route path="krediler" element={<LoansPage />} />

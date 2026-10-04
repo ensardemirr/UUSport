@@ -11,7 +11,11 @@ public sealed record PartySummary(
 
 public sealed record LedgerRow(
     Guid Id, DateOnly OccurredOn, string SourceType, Guid SourceId, string Description,
-    decimal Debit, decimal Credit, decimal Balance);
+    decimal Debit, decimal Credit, decimal Balance, bool IsOfficial);
+
+public sealed record LedgerListRow(
+    Guid Id, Guid PartyId, string PartyName, DateOnly OccurredOn, string SourceType, Guid SourceId,
+    string Description, decimal Debit, decimal Credit, bool IsOfficial);
 
 public sealed record LineRow(
     Guid Id, Guid PartyId, string PartyName, DateOnly OccurredOn, string Direction, Guid ItemId, string ItemName, string ItemKind,
@@ -56,14 +60,90 @@ public sealed class AccountingQueries(AppDbContext db)
         var entries = await db.LedgerEntries.Where(e => e.PartyId == partyId)
             .OrderBy(e => e.OccurredOn).ThenBy(e => e.CreatedAt).ThenBy(e => e.Id)
             .ToListAsync(ct);
+        if (entries.Count == 0) return [];
+
+        var officialBySourceId = await BuildOfficialFlagsAsync(partyId, entries, ct);
+
         decimal running = 0;
         var rows = new List<LedgerRow>(entries.Count);
         foreach (var e in entries)
         {
             running += e.Debit - e.Credit;
-            rows.Add(new LedgerRow(e.Id, e.OccurredOn, e.SourceType, e.SourceId, e.Description, e.Debit, e.Credit, running));
+            rows.Add(new LedgerRow(e.Id, e.OccurredOn, e.SourceType, e.SourceId, e.Description, e.Debit, e.Credit, running,
+                officialBySourceId.GetValueOrDefault(e.SourceId, true)));
         }
         return rows;
+    }
+
+    /// <summary>
+    /// Tum cariler icin duz hareket listesi (surum 2 hazirlik notu madde: "hesap hareketleri
+    /// icin liste"). Tek cariye ait yuruyen bakiye buradaki gibi anlamli olmadigindan Balance
+    /// alani yoktur; partyId/tarih araligi ile filtrelenebilir.
+    /// </summary>
+    public async Task<List<LedgerListRow>> AllLedgerAsync(Guid? partyId, DateOnly? from, DateOnly? to, CancellationToken ct)
+    {
+        var q = db.LedgerEntries.AsQueryable();
+        if (partyId is not null) q = q.Where(e => e.PartyId == partyId);
+        if (from is not null) q = q.Where(e => e.OccurredOn >= from);
+        if (to is not null) q = q.Where(e => e.OccurredOn <= to);
+        var entries = await q.OrderByDescending(e => e.OccurredOn).ThenByDescending(e => e.CreatedAt).ToListAsync(ct);
+        if (entries.Count == 0) return [];
+
+        var partyIds = entries.Select(e => e.PartyId).Distinct().ToList();
+        var parties = await db.Parties.Where(p => partyIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => p.Name, ct);
+
+        // "Resmi" hesabi cariye ozeldir (LinesAsync partyId ister); her cari icin ayri hesaplanir.
+        var officialBySourceId = new Dictionary<Guid, bool>();
+        foreach (var pid in partyIds)
+        {
+            var partyEntries = entries.Where(e => e.PartyId == pid).ToList();
+            foreach (var kv in await BuildOfficialFlagsAsync(pid, partyEntries, ct))
+                officialBySourceId[kv.Key] = kv.Value;
+        }
+
+        return entries.Select(e => new LedgerListRow(e.Id, e.PartyId, parties.GetValueOrDefault(e.PartyId, ""),
+            e.OccurredOn, e.SourceType, e.SourceId, e.Description, e.Debit, e.Credit,
+            officialBySourceId.GetValueOrDefault(e.SourceId, true))).ToList();
+    }
+
+    /// <summary>
+    /// "Resmi" = muhasebeye gonderilmis kayit (surum 2 hazirlik notu). Satis/alis satiri tam
+    /// belgelenmisse (LineRow.Status == "documented") resmidir; tahsilat/odeme, belgelenmis bir
+    /// satira dagitilmissa resmidir; iade kayitlari orijinalinin resmi durumunu miras alir;
+    /// acilis bakiyesi (muhasebe onayli) ve henuz kullanilmayan onayli duzeltme her zaman resmidir.
+    /// </summary>
+    private async Task<Dictionary<Guid, bool>> BuildOfficialFlagsAsync(Guid partyId, List<LedgerEntry> entries, CancellationToken ct)
+    {
+        var result = new Dictionary<Guid, bool>();
+
+        var lineStatuses = (await LinesAsync(partyId, null, ct)).ToDictionary(l => l.Id, l => l.Status == "documented");
+        foreach (var e in entries)
+        {
+            if (e.SourceType is LedgerSources.SalesLine or LedgerSources.PurchaseLine
+                or LedgerSources.SalesLineReversal or LedgerSources.PurchaseLineReversal)
+                result[e.SourceId] = lineStatuses.GetValueOrDefault(e.SourceId, false);
+        }
+
+        var paymentSourceIds = entries.Where(e => e.SourceType is LedgerSources.Payment or LedgerSources.PaymentReversal)
+            .Select(e => e.SourceId).Distinct().ToList();
+        if (paymentSourceIds.Count > 0)
+        {
+            var payments = await db.Payments.Where(p => paymentSourceIds.Contains(p.Id))
+                .ToDictionaryAsync(p => p.Id, ct);
+            // payment_reversal'in kaynak id'si, yeni uretilen ters Payment kaydidir; asil odemenin
+            // dagitimlarina bakmak icin ReversesPaymentId uzerinden orijinaline gidilir.
+            var effectivePaymentId = paymentSourceIds.ToDictionary(id => id,
+                id => payments.TryGetValue(id, out var p) && p.ReversesPaymentId is { } orig ? orig : id);
+            var lookupIds = effectivePaymentId.Values.Distinct().ToList();
+            var allocations = await db.PaymentAllocations.Where(a => lookupIds.Contains(a.PaymentId) && a.Amount > 0)
+                .Select(a => new { a.PaymentId, a.TradeLineId }).ToListAsync(ct);
+            var officialByPaymentId = lookupIds.ToDictionary(id => id,
+                id => allocations.Any(a => a.PaymentId == id && lineStatuses.GetValueOrDefault(a.TradeLineId, false)));
+            foreach (var id in paymentSourceIds)
+                result[id] = officialByPaymentId.GetValueOrDefault(effectivePaymentId[id], false);
+        }
+
+        return result;
     }
 
     /// <summary>partyId null ise tum cariler (Muhasebe Bekleyen listesi icin).</summary>
@@ -91,8 +171,10 @@ public sealed class AccountingQueries(AppDbContext db)
 
         // Iade miktarlari ve orijinal satirlar (farkli filtrede olsalar bile) hesaba katilir.
         var reversals = await db.TradeLines.Where(l => l.ReversesLineId != null && (ids.Contains(l.ReversesLineId!.Value) || ids.Contains(l.Id)))
-            .Select(l => new { l.Id, Original = l.ReversesLineId!.Value, l.Quantity }).ToListAsync(ct);
+            .Select(l => new { l.Id, Original = l.ReversesLineId!.Value, l.Quantity, l.GrossAmount }).ToListAsync(ct);
         var reversedByOriginal = reversals.GroupBy(r => r.Original).ToDictionary(g => g.Key, g => -g.Sum(r => r.Quantity));
+        // Iade satirlarinin brutu eksidir; acik tutar net ekonomik tutardan hesaplanir (X:ACC-07).
+        var reversedGrossByOriginal = reversals.GroupBy(r => r.Original).ToDictionary(g => g.Key, g => g.Sum(r => r.GrossAmount));
         var originalIds = lines.Where(l => l.ReversesLineId != null).Select(l => l.ReversesLineId!.Value).Distinct().ToList();
         var originals = await db.TradeLines.Where(l => originalIds.Contains(l.Id)).ToDictionaryAsync(l => l.Id, ct);
 
@@ -127,7 +209,8 @@ public sealed class AccountingQueries(AppDbContext db)
             rows.Add(new LineRow(l.Id, l.PartyId, parties.GetValueOrDefault(l.PartyId, ""), l.OccurredOn,
                 AppDbContext.ToSnake(l.Direction.ToString()), l.ItemId, item.Name, AppDbContext.ToSnake(item.Kind.ToString()),
                 l.Quantity, l.UnitPrice, l.DiscountPercent, l.VatRate, l.NetAmount, l.VatAmount, l.GrossAmount,
-                l.DocumentedQuantity, pendingQty, alloc, l.ReversesLineId is null ? l.GrossAmount - alloc : 0,
+                l.DocumentedQuantity, pendingQty, alloc,
+                l.ReversesLineId is null ? Math.Max(0, l.GrossAmount + reversedGrossByOriginal.GetValueOrDefault(l.Id) - alloc) : 0,
                 status, l.ReversesLineId, l.Description, docsByLine.GetValueOrDefault(l.Id, [])));
         }
         return rows;

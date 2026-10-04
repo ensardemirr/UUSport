@@ -18,7 +18,7 @@ function Brand() {
 
 export function SetupPage() {
   const { refresh } = useAuth()
-  const [form, setForm] = useState({ organizationName: '', fullName: '', userName: '', password: '', confirm: '' })
+  const [form, setForm] = useState({ organizationName: '', fullName: '', userName: '', password: '', confirm: '', token: '' })
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [k]: e.target.value })
@@ -53,6 +53,9 @@ export function SetupPage() {
           <input className="input" type="password" value={form.password} onChange={set('password')} required minLength={12} autoComplete="new-password" />
         </Field>
         <Field label="Parola (tekrar)"><input className="input" type="password" value={form.confirm} onChange={set('confirm')} required autoComplete="new-password" /></Field>
+        <Field label="Kurulum jetonu" hint="Sunucu makinesinde bir kez oluşur; sunucu günlüğünde görünür">
+          <input className="input" value={form.token} onChange={set('token')} required autoComplete="off" />
+        </Field>
         <button className="btn primary" type="submit" disabled={busy}>Kurulumu Tamamla</button>
       </form>
     </main>
@@ -61,7 +64,7 @@ export function SetupPage() {
 
 export function LoginPage() {
   const { refresh } = useAuth()
-  const [step, setStep] = useState<'password' | 'code'>('password')
+  const [step, setStep] = useState<'password' | 'code' | 'recovery'>('password')
   const [userName, setUserName] = useState('')
   const [password, setPassword] = useState('')
   const [code, setCode] = useState('')
@@ -77,8 +80,11 @@ export function LoginPage() {
         const r = await post<{ status: string }>('/api/auth/login', { userName, password })
         if (r.status === 'mfa_required') { setStep('code'); return }
         await refresh()
-      } else {
+      } else if (step === 'code') {
         await post('/api/auth/login/mfa', { code })
+        await refresh()
+      } else {
+        await post('/api/auth/login/mfa/recovery', { code })
         await refresh()
       }
     } catch (err) { setError(errorText(err)) } finally { setBusy(false) }
@@ -88,7 +94,7 @@ export function LoginPage() {
     <main className="auth-wrap">
       <form className="auth-card" onSubmit={submit}>
         <Brand />
-        <h1>{step === 'password' ? 'Giriş' : 'Doğrulama kodu'}</h1>
+        <h1>{step === 'password' ? 'Giriş' : step === 'code' ? 'Doğrulama kodu' : 'Kurtarma kodu'}</h1>
         <ErrorBox message={error} />
         {step === 'password' ? (
           <>
@@ -96,12 +102,20 @@ export function LoginPage() {
             <Field label="Parola"><input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" /></Field>
             <button className="btn primary" type="submit" disabled={busy}>Giriş Yap</button>
           </>
-        ) : (
+        ) : step === 'code' ? (
           <>
             <p className="muted">Telefonunuzdaki doğrulayıcı uygulamada görünen 6 haneli kodu girin.</p>
             <Field label="Kod"><input className="input" value={code} onChange={(e) => setCode(e.target.value)} inputMode="numeric" autoComplete="one-time-code" required autoFocus maxLength={8} /></Field>
             <button className="btn primary" type="submit" disabled={busy}>Doğrula</button>
+            <button className="btn ghost" type="button" onClick={() => { setStep('recovery'); setCode(''); setError(null) }}>Telefonum yanımda değil, kurtarma kodu kullanacağım</button>
             <button className="btn ghost" type="button" onClick={() => { setStep('password'); setCode(''); setError(null) }}>Geri dön</button>
+          </>
+        ) : (
+          <>
+            <p className="muted">Kurulumda size verilen kurtarma kodlarından birini girin. Her kod yalnız bir kez kullanılır.</p>
+            <Field label="Kurtarma kodu"><input className="input" value={code} onChange={(e) => setCode(e.target.value)} autoComplete="one-time-code" required autoFocus /></Field>
+            <button className="btn primary" type="submit" disabled={busy}>Doğrula</button>
+            <button className="btn ghost" type="button" onClick={() => { setStep('code'); setCode(''); setError(null) }}>Geri dön</button>
           </>
         )}
       </form>
@@ -115,6 +129,7 @@ export function MfaSetupPage() {
   const [qr, setQr] = useState<string | null>(null)
   const [code, setCode] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null)
 
   useEffect(() => {
     api<{ sharedKey: string; authenticatorUri: string }>('/api/auth/mfa/setup')
@@ -125,7 +140,31 @@ export function MfaSetupPage() {
   async function submit(e: FormEvent) {
     e.preventDefault()
     setError(null)
-    try { await post('/api/auth/mfa/enable', { code }); await refresh() } catch (err) { setError(errorText(err)) }
+    try {
+      const r = await post<{ recoveryCodes: string[] }>('/api/auth/mfa/enable', { code })
+      setRecoveryCodes(r.recoveryCodes)
+    } catch (err) { setError(errorText(err)) }
+  }
+
+  if (recoveryCodes) {
+    return (
+      <main className="auth-wrap">
+        <div className="auth-card">
+          <Brand />
+          <div>
+            <h1>Kurtarma kodlarınız</h1>
+            <p className="muted" style={{ marginTop: 6 }}>
+              Telefonunuzu kaybederseniz bu kodlardan biriyle giriş yapabilirsiniz. Her kod yalnız bir kez
+              kullanılır. Şimdi not edin veya yazdırın; bu ekran bir daha gösterilmeyecek.
+            </p>
+          </div>
+          <div className="code" style={{ lineHeight: 1.8 }}>
+            {recoveryCodes.map((c) => <div key={c}>{c}</div>)}
+          </div>
+          <button className="btn primary" type="button" onClick={refresh}>Kaydettim, devam et</button>
+        </div>
+      </main>
+    )
   }
 
   return (

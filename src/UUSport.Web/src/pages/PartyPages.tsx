@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useNavigate, useParams } from 'react-router'
 import { api, post, put, type DocumentRow, type LedgerRow, type LineRow, type PartyDetail, type PartyKind, type PartyListRow, type PaymentRow } from '../api'
 import { Dialog, Empty, ErrorBox, Field, Loading, ReasonDialog, StatusBadge, Tabs, errorText, useAsync, useToast } from '../components'
@@ -139,7 +140,7 @@ type Modal =
   | { kind: 'payment'; direction: 'receipt' | 'disbursement' }
   | { kind: 'document'; direction: 'sale' | 'purchase'; preselect: string[] }
   | { kind: 'prep'; line: LineRow } | { kind: 'reverse'; line: LineRow } | { kind: 'allocate'; payment: PaymentRow }
-  | { kind: 'reversePayment'; payment: PaymentRow } | { kind: 'opening' } | { kind: 'athlete' }
+  | { kind: 'reversePayment'; payment: PaymentRow } | { kind: 'opening' } | { kind: 'athlete' } | { kind: 'statement' }
 
 export function PartyDetailPage() {
   const { id = '' } = useParams()
@@ -181,6 +182,7 @@ export function PartyDetailPage() {
           </p>
         </div>
         <div className="actions">
+          <button className="btn ghost" type="button" onClick={() => setModal({ kind: 'statement' })}>Ekstre Al</button>
           {isCustomer ? <>
             <button className="btn" type="button" onClick={() => setModal({ kind: 'trade', direction: 'sale' })}>Stok veya Hizmet Çıkışı</button>
             <button className="btn primary" type="button" onClick={() => setModal({ kind: 'payment', direction: 'receipt' })}>Tahsilat Al</button>
@@ -201,7 +203,7 @@ export function PartyDetailPage() {
           <div className="note">{balance > 0 ? 'Cari bize borçlu' : balance < 0 ? 'Cari alacaklı / avans' : 'Hesap kapalı'}</div>
         </div>
         <div className="card">
-          <div className="label">Belgeli / resmî satış</div>
+          <div className="label">Belgeli satış</div>
           <div className="value">{money(summary.documentedSalesGross)}</div>
           <div className="note">Faturası girilmiş satış tutarı</div>
         </div>
@@ -221,7 +223,7 @@ export function PartyDetailPage() {
         <div className="panel-body">
           <Tabs label="Cari görünümü" value={view} onChange={setView} tabs={[
             { id: 'all', label: 'Toplam', count: ledger.data?.length },
-            { id: 'official', label: 'Belgeli / Resmî', count: official.length },
+            { id: 'official', label: 'Belgeli', count: official.length },
             { id: 'pending', label: 'Muhasebe Bekleyen', count: pendingLines.length + openPayments.length },
           ]}>
             <div style={{ marginTop: 12 }}>
@@ -244,7 +246,7 @@ export function PartyDetailPage() {
           </Tabs>
         </div>
         <p className="small muted" style={{ padding: '10px 16px' }}>
-          Toplam görünüm tüm cari hareketlerini ve yürüyen bakiyeyi gösterir. Fatura cariye ayrı tutar yazmaz; satırın belgesi olarak görünür.
+          Toplam görünüm tüm hareketleri ve yürüyen bakiyeyi gösterir. Fatura satışın belgesidir; bakiyeye ikinci kez eklenmez.
         </p>
       </div>
 
@@ -315,6 +317,108 @@ export function PartyDetailPage() {
         }} />
       <OpeningBalanceDialog open={modal.kind === 'opening'} partyId={id} onClose={close} onSaved={() => done('Açılış bakiyesi onaya gönderildi.')} />
       <AthleteDialog open={modal.kind === 'athlete'} partyId={id} onClose={close} onSaved={() => done('Sporcu eklendi.')} />
+      <StatementDialog open={modal.kind === 'statement'} party={party} rows={ledger.data} onClose={close} />
+    </>
+  )
+}
+
+// =====================================================================
+// Ekstre (surum 2 hazirlik notu madde 2): ayri pencere, "Muhasebe Gorunumu" filtresi,
+// ekranda gorundugu sekilde yazdirma/PDF (tarayicinin "PDF olarak kaydet" ciktisi).
+// Gecici: muhasebe gorunumunde yuruyen bakiye gosterilmez (toplam defterden geldigi icin tutarsizdi).
+// Kalici cozum M2/S-21: sunucuda kendi devri ve yuruyen bakiyesiyle ekstre.
+// =====================================================================
+
+function StatementDialog({ open, party, rows, onClose }: {
+  open: boolean; party: PartyDetail['party']; rows: LedgerRow[] | null; onClose: () => void
+}) {
+  const [officialOnly, setOfficialOnly] = useState(false)
+  const all = rows ?? []
+  const shown = officialOnly ? all.filter((r) => r.isOfficial) : all
+  const totalDebit = shown.reduce((s, r) => s + Number(r.debit), 0)
+  const totalCredit = shown.reduce((s, r) => s + Number(r.credit), 0)
+  const currentBalance = all.length ? all[all.length - 1].balance : '0'
+  const net = totalDebit - totalCredit
+
+  const content = (
+    <div className="statement-print">
+      <div className="statement-head">
+        <div>
+          <strong>UU Sport</strong>
+          <div className="muted small">{party.name}{party.code ? ` · ${party.code}` : ''}</div>
+          <div className="muted small">Ekstre tarihi: {date(new Date().toISOString().slice(0, 10))}</div>
+          <div className="small statement-scope">
+            {officialOnly ? 'Muhasebe görünümü — yalnız belgelenmiş hareketler; tüm hareketleri içermez' : 'Tüm hareketler'}
+          </div>
+        </div>
+        <label className="statement-toggle">
+          <input type="checkbox" checked={officialOnly} onChange={(e) => setOfficialOnly(e.target.checked)} />
+          Muhasebe Görünümü
+        </label>
+      </div>
+      {!rows ? <Loading /> : shown.length === 0 ? (
+        <Empty title={officialOnly ? 'Muhasebe görünümünde hareket yok' : 'Cari hareket yok'} />
+      ) : (
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Tarih</th><th>Açıklama</th>{!officialOnly ? <th>Muhasebe</th> : null}
+                <th className="num">Borç</th><th className="num">Alacak</th>{!officialOnly ? <th className="num">Bakiye</th> : null}
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((r) => (
+                <tr key={r.id}>
+                  <td>{date(r.occurredOn)}</td>
+                  <td>{r.description}</td>
+                  {!officialOnly ? <td>{r.isOfficial ? <span className="badge done">Belgelendi</span> : <span className="badge pending">Belge bekliyor</span>}</td> : null}
+                  <td className="num">{Number(r.debit) ? money(r.debit) : '—'}</td>
+                  <td className="num">{Number(r.credit) ? money(r.credit) : '—'}</td>
+                  {!officialOnly ? <td className="num"><Balance value={r.balance} /></td> : null}
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              {officialOnly ? (
+                <tr>
+                  <td colSpan={2}>Toplam (net: <Balance value={String(net)} />)</td>
+                  <td className="num">{money(totalDebit)}</td>
+                  <td className="num">{money(totalCredit)}</td>
+                </tr>
+              ) : (
+                <tr>
+                  <td colSpan={3}>Toplam</td>
+                  <td className="num">{money(totalDebit)}</td>
+                  <td className="num">{money(totalCredit)}</td>
+                  <td className="num"><Balance value={currentBalance} /></td>
+                </tr>
+              )}
+            </tfoot>
+          </table>
+        </div>
+      )}
+      <p className="small muted statement-footnote">
+        {officialOnly
+          ? 'Belgelenmiş hareketler dökümüdür; belge bekleyen hareketleri içermez.'
+          : '"Muhasebe" sütunu, hareketin belgelenip belgelenmediğini gösterir.'}
+      </p>
+    </div>
+  )
+
+  return (
+    <>
+      <Dialog open={open} onClose={onClose} wide title={`Cari Ekstresi — ${party.name}`}
+        footer={<>
+          <button type="button" className="btn" onClick={onClose}>Kapat</button>
+          <button type="button" className="btn primary" onClick={() => window.print()}>Yazdır / PDF Kaydet</button>
+        </>}>
+        {content}
+      </Dialog>
+      {/* <dialog> yerlesik "ust katman"da calisir; tarayicilarin yazdirma/PDF cikisi bu katmani
+          guvenilir sekilde basmiyor. Bu yuzden ayni icerik, pencere acikken document.body'ye
+          ayri bir kopya olarak da eklenir; ekranda gizli kalir, yalniz @media print'te gorunur. */}
+      {open ? createPortal(<div className="statement-print-portal">{content}</div>, document.body) : null}
     </>
   )
 }

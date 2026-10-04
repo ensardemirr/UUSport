@@ -251,7 +251,7 @@ export function ChecksPage() {
   return (
     <>
       <div className="page-head">
-        <div><h1>Çek Portföyü</h1><p className="sub">Çek kaydı cariye tutar yazmaz; tahsil edildiğinde otomatik tahsilat oluşur.</p></div>
+        <div><h1>Çek Portföyü</h1><p className="sub">Alınan ve verilen çekler. Tahsil edilen çek, cariye otomatik tahsilat olarak işlenir.</p></div>
         <button className="btn primary" type="button" onClick={() => setCreating(true)}>Çek Gir</button>
       </div>
       <ErrorBox message={error} />
@@ -420,7 +420,7 @@ function CollectCheckDialog({ check, onClose, onSaved }: { check: CheckRow | nul
   const { data: accounts } = useAsync(() => check ? api<CashAccount[]>('/api/cash-accounts') : Promise.resolve([]), [check?.id])
   const usable = (accounts ?? []).filter((a) => (a.kind === 'bank' || a.kind === 'cash') && a.isActive)
   const [accountId, setAccountId] = useState('')
-  const [occurredOn, setOccurredOn] = useState('')
+  const [occurredOn, setOccurredOn] = useState(today())
   const [error, setError] = useState<string | null>(null)
 
   return (
@@ -431,6 +431,7 @@ function CollectCheckDialog({ check, onClose, onSaved }: { check: CheckRow | nul
         <button type="button" className="btn primary" onClick={async () => {
           setError(null)
           if (!accountId) { setError('Paranın gireceği hesap seçilmeli.'); return }
+          if (!occurredOn) { setError('Tahsilat tarihi girilmeli.'); return }
           try { await post(`/api/checks/${check!.id}/collect`, { cashAccountId: accountId, occurredOn: occurredOn || null }); onSaved() }
           catch (e) { setError(errorText(e)) }
         }}>Tahsil Et</button>
@@ -442,8 +443,8 @@ function CollectCheckDialog({ check, onClose, onSaved }: { check: CheckRow | nul
           {usable.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
         </select>
       </Field>
-      <Field label="Tahsilat tarihi" hint="boş bırakılırsa vade tarihi kullanılır">
-        <input className="input" type="date" value={occurredOn} onChange={(e) => setOccurredOn(e.target.value)} />
+      <Field label="Tahsilat tarihi" hint="paranın hesaba geçtiği gün">
+        <input className="input" type="date" value={occurredOn} onChange={(e) => setOccurredOn(e.target.value)} required />
       </Field>
     </Dialog>
   )

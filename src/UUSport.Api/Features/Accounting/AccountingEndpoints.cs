@@ -134,6 +134,10 @@ public static class AccountingEndpoints
 
         g.MapGet("/pending-work", async (AccountingQueries q, CancellationToken ct) => Results.Ok(await q.PendingWorkAsync(ct)));
 
+        // Hesap hareketleri listesi (surum 2 hazirlik notu): tum cariler, opsiyonel cari/tarih filtresi.
+        g.MapGet("/ledger", async (Guid? partyId, DateOnly? from, DateOnly? to, AccountingQueries q, CancellationToken ct) =>
+            Results.Ok(await q.AllLedgerAsync(partyId, from, to, ct)));
+
         g.MapGet("/dashboard", async (AppDbContext db, AccountingQueries q, CancellationToken ct) =>
         {
             var today = DateOnly.FromDateTime(DateTime.Now);

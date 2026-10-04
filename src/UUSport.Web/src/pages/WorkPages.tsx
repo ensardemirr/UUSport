@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
-import { api, post, put, type CashAccount, type DocumentRow, type Item, type PaymentRow, type PendingWork } from '../api'
+import { api, post, put, type CashAccount, type DocumentRow, type Item, type LedgerListRow, type PartyListRow, type PaymentRow, type PendingWork } from '../api'
 import { useAuth } from '../auth'
 import { Dialog, Empty, ErrorBox, Field, Loading, ReasonDialog, StatusBadge, Tabs, errorText, useAsync, useToast } from '../components'
 import { date, dateTime, docTypeName, money, normalizeNumber, percent, quantity, today } from '../format'
@@ -137,7 +137,7 @@ export function DocumentsPage() {
       <div className="page-head">
         <div>
           <h1>Faturalar</h1>
-          <p className="sub">GİB portalında kesilip sisteme girilen faturalar ve alış faturaları. Fatura cariye ayrı tutar yazmaz.</p>
+          <p className="sub">GİB portalında kesilip sisteme girilen satış faturaları ve alış faturaları.</p>
         </div>
       </div>
       <ErrorBox message={error} />
@@ -167,6 +167,81 @@ export function DocumentsPage() {
         onClose={() => setCancel(null)} onConfirm={async (reason) => {
           await post(`/api/documents/${cancel!.id}/cancel`, { reason }); toast('Fatura iptal edildi.'); reload()
         }} />
+    </>
+  )
+}
+
+// =====================================================================
+// Hesap hareketleri (tum cariler, surum 2 hazirlik notu)
+// =====================================================================
+
+export function LedgerListPage() {
+  const [partyId, setPartyId] = useState('')
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
+  const [officialOnly, setOfficialOnly] = useState(false)
+  const parties = useAsync(() => api<PartyListRow[]>('/api/parties'), [])
+  const { data, error, loading } = useAsync(() => {
+    const params = new URLSearchParams()
+    if (partyId) params.set('partyId', partyId)
+    if (from) params.set('from', from)
+    if (to) params.set('to', to)
+    return api<LedgerListRow[]>(`/api/ledger?${params.toString()}`)
+  }, [partyId, from, to])
+  const rows = officialOnly ? (data ?? []).filter((r) => r.isOfficial) : (data ?? [])
+
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <h1>Hesap Hareketleri</h1>
+          <p className="sub">Tüm carilerin hareketleri tek listede.</p>
+        </div>
+      </div>
+      <div className="panel">
+        <div className="panel-head">
+          <div className="row">
+            <select className="input" style={{ width: 220 }} aria-label="Cari" value={partyId} onChange={(e) => setPartyId(e.target.value)}>
+              <option value="">Tüm cariler</option>
+              {(parties.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            <Field label="Başlangıç"><input className="input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></Field>
+            <Field label="Bitiş"><input className="input" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></Field>
+            <label className="statement-toggle">
+              <input type="checkbox" checked={officialOnly} onChange={(e) => setOfficialOnly(e.target.checked)} />
+              Muhasebe Görünümü
+            </label>
+          </div>
+          <span className="muted small">{data ? `${rows.length} hareket` : ''}</span>
+        </div>
+        <ErrorBox message={error} />
+        {loading && !data ? <Loading /> : rows.length === 0 ? (
+          <Empty title="Hareket bulunamadı">Seçtiğiniz filtreye uyan cari hareket yok.</Empty>
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tarih</th><th>Cari</th><th>Açıklama</th><th>Muhasebe</th>
+                  <th className="num">Borç</th><th className="num">Alacak</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.id}>
+                    <td>{date(r.occurredOn)}</td>
+                    <td><Link className="row-link" to={`/cariler/${r.partyId}`}>{r.partyName}</Link></td>
+                    <td>{r.description}</td>
+                    <td>{r.isOfficial ? <span className="badge done">Belgelendi</span> : <span className="badge pending">Belge bekliyor</span>}</td>
+                    <td className="num">{Number(r.debit) ? money(r.debit) : '—'}</td>
+                    <td className="num">{Number(r.credit) ? money(r.credit) : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </>
   )
 }

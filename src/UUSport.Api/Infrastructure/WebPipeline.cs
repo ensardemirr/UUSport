@@ -72,9 +72,10 @@ public sealed class SecurityMiddleware(RequestDelegate next)
 {
     public const string RequestHeader = "X-UUSport-Request";
 
-    public async Task InvokeAsync(HttpContext ctx)
+    public async Task InvokeAsync(HttpContext ctx, AppBuildInfo build)
     {
         var isApi = ctx.Request.Path.StartsWithSegments("/api");
+        var buildId = isApi ? build.Current : null;
         // Basliklar yanit baslarken yazilir; hata yanitinda Response.Clear() onlari silemez.
         ctx.Response.OnStarting(() =>
         {
@@ -85,6 +86,7 @@ public sealed class SecurityMiddleware(RequestDelegate next)
             h["Content-Security-Policy"] =
                 "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
             if (isApi) h["Cache-Control"] = "no-store";
+            if (buildId is not null) h["X-App-Build"] = buildId;
             return Task.CompletedTask;
         });
 

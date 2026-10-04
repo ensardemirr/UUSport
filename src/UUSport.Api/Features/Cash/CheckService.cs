@@ -94,61 +94,75 @@ public sealed class CheckService(AppDbContext db, TenantContext tenant, ICurrent
         return checks;
     }
 
-    public async Task SubmitForCollectionAsync(Guid id, CancellationToken ct)
+    public Task SubmitForCollectionAsync(Guid id, CancellationToken ct) =>
+        accounting.InTransactionAsync(async () =>
+        {
+            var check = await LockAndRequire(id, ct);
+            if (check.Status != CheckStatus.InPortfolio)
+                throw new DomainException("status", "Yalnız portföydeki çek tahsile verilebilir.");
+            check.Status = CheckStatus.SubmittedForCollection;
+            audit.Add("check.submit_for_collection", "check_note", check.Id);
+            await db.SaveChangesAsync(ct);
+        }, ct);
+
+    /// <summary>
+    /// Tahsil edildiginde otomatik Payment uretir; odeme ve cek durumu tek transaction'dadir (S-02).
+    /// Gerceklesme tarihi verilmezse bugundur; vade tarihi nakit planinda kullanilir (O37, X:CSH-06).
+    /// </summary>
+    public Task CollectAsync(Guid id, CollectInput input, CancellationToken ct) =>
+        accounting.InTransactionAsync(async () =>
+        {
+            var check = await LockAndRequire(id, ct);
+            if (check.Status is not (CheckStatus.InPortfolio or CheckStatus.SubmittedForCollection))
+                throw new DomainException("status", "Bu çek şu anki durumunda tahsil edilemez.");
+
+            var direction = check.Direction == CheckDirection.Received ? PaymentDirection.Receipt : PaymentDirection.Disbursement;
+            var method = check.Direction == CheckDirection.Received ? PaymentMethod.Check : PaymentMethod.Transfer;
+            var payment = await accounting.CreatePaymentAsync(new PaymentInput(
+                check.PartyId, direction, method, input.CashAccountId, check.Amount,
+                input.OccurredOn ?? DateOnly.FromDateTime(DateTime.Now), check.CheckNo,
+                $"Çek tahsilatı — {check.BankName} {check.CheckNo}", null), ct);
+
+            check.Status = CheckStatus.Collected;
+            check.PaymentId = payment.Id;
+            audit.Add("check.collect", "check_note", check.Id, new { paymentId = payment.Id, check.Amount });
+            await db.SaveChangesAsync(ct);
+        }, ct);
+
+    /// <summary>Karsiliksiz: daha once tahsil edilmisse (PaymentId dolu) o odeme ayni transaction'da ters kayitla geri alinir.</summary>
+    public Task BounceAsync(Guid id, BounceInput input, CancellationToken ct) =>
+        accounting.InTransactionAsync(async () =>
+        {
+            var check = await LockAndRequire(id, ct);
+            if (check.Status == CheckStatus.Bounced) throw new DomainException("already_bounced", "Bu çek zaten karşılıksız olarak işaretli.");
+            var reason = input.Reason?.Trim();
+            if (string.IsNullOrEmpty(reason)) throw new DomainException("reason", "Karşılıksız gerekçesi zorunlu.");
+
+            if (check.PaymentId is { } paymentId)
+                await accounting.ReverseCheckPaymentAsync(paymentId, $"Çek karşılıksız çıktı: {reason}", ct);
+
+            check.Status = CheckStatus.Bounced;
+            check.StatusNote = reason;
+            audit.Add("check.bounce", "check_note", check.Id, new { reason, hadPayment = check.PaymentId is not null });
+            await db.SaveChangesAsync(ct);
+        }, ct);
+
+    public Task EndorseAsync(Guid id, EndorseInput input, CancellationToken ct) =>
+        accounting.InTransactionAsync(async () =>
+        {
+            var check = await LockAndRequire(id, ct);
+            if (check.Status is not (CheckStatus.InPortfolio or CheckStatus.SubmittedForCollection))
+                throw new DomainException("status", "Yalnız portföydeki çek ciro edilebilir.");
+            check.Status = CheckStatus.Endorsed;
+            check.StatusNote = string.IsNullOrWhiteSpace(input.Note) ? null : input.Note.Trim();
+            audit.Add("check.endorse", "check_note", check.Id, new { note = check.StatusNote });
+            await db.SaveChangesAsync(ct);
+        }, ct);
+
+    private async Task<Check> LockAndRequire(Guid id, CancellationToken ct)
     {
-        var check = await Require(id, ct);
-        if (check.Status != CheckStatus.InPortfolio)
-            throw new DomainException("status", "Yalnız portföydeki çek tahsile verilebilir.");
-        check.Status = CheckStatus.SubmittedForCollection;
-        audit.Add("check.submit_for_collection", "check_note", check.Id);
-        await db.SaveChangesAsync(ct);
-    }
-
-    /// <summary>Tahsil edildiginde otomatik Payment uretir; nakit girisi vade tarihinde sayilir (spesifikasyon O37).</summary>
-    public async Task CollectAsync(Guid id, CollectInput input, CancellationToken ct)
-    {
-        var check = await Require(id, ct);
-        if (check.Status is not (CheckStatus.InPortfolio or CheckStatus.SubmittedForCollection))
-            throw new DomainException("status", "Bu çek şu anki durumunda tahsil edilemez.");
-
-        var direction = check.Direction == CheckDirection.Received ? PaymentDirection.Receipt : PaymentDirection.Disbursement;
-        var method = check.Direction == CheckDirection.Received ? PaymentMethod.Check : PaymentMethod.Transfer;
-        var payment = await accounting.CreatePaymentAsync(new PaymentInput(
-            check.PartyId, direction, method, input.CashAccountId, check.Amount,
-            input.OccurredOn ?? check.DueDate, check.CheckNo, $"Çek tahsilatı — {check.BankName} {check.CheckNo}", null), ct);
-
-        check.Status = CheckStatus.Collected;
-        check.PaymentId = payment.Id;
-        audit.Add("check.collect", "check_note", check.Id, new { paymentId = payment.Id, check.Amount });
-        await db.SaveChangesAsync(ct);
-    }
-
-    /// <summary>Karsiliksiz: daha once tahsil edilmisse (PaymentId dolu) o odeme ters kayitla geri alinir.</summary>
-    public async Task BounceAsync(Guid id, BounceInput input, CancellationToken ct)
-    {
-        var check = await Require(id, ct);
-        if (check.Status == CheckStatus.Bounced) throw new DomainException("already_bounced", "Bu çek zaten karşılıksız olarak işaretli.");
-        var reason = input.Reason?.Trim();
-        if (string.IsNullOrEmpty(reason)) throw new DomainException("reason", "Karşılıksız gerekçesi zorunlu.");
-
-        if (check.PaymentId is { } paymentId)
-            await accounting.ReversePaymentAsync(paymentId, $"Çek karşılıksız çıktı: {reason}", ct);
-
-        check.Status = CheckStatus.Bounced;
-        check.StatusNote = reason;
-        audit.Add("check.bounce", "check_note", check.Id, new { reason, hadPayment = check.PaymentId is not null });
-        await db.SaveChangesAsync(ct);
-    }
-
-    public async Task EndorseAsync(Guid id, EndorseInput input, CancellationToken ct)
-    {
-        var check = await Require(id, ct);
-        if (check.Status is not (CheckStatus.InPortfolio or CheckStatus.SubmittedForCollection))
-            throw new DomainException("status", "Yalnız portföydeki çek ciro edilebilir.");
-        check.Status = CheckStatus.Endorsed;
-        check.StatusNote = string.IsNullOrWhiteSpace(input.Note) ? null : input.Note.Trim();
-        audit.Add("check.endorse", "check_note", check.Id, new { note = check.StatusNote });
-        await db.SaveChangesAsync(ct);
+        await accounting.LockAsync(LockTable.CheckNote, [id], ct);
+        return await Require(id, ct);
     }
 
     public async Task<List<CheckRow>> ListAsync(string? status, CancellationToken ct)

@@ -150,11 +150,21 @@ export function TradeLineDialog({ open, direction, partyId, onClose, onSaved }: 
 // =====================================================================
 
 const methods = [
-  { id: 'transfer', label: 'Havale / EFT', account: 'bank' },
-  { id: 'cash', label: 'Nakit', account: 'cash' },
-  { id: 'card', label: 'Kredi kartı / POS', account: 'pos' },
-  { id: 'check', label: 'Çek', account: 'bank' },
+  { id: 'transfer', label: 'Havale / EFT' },
+  { id: 'cash', label: 'Nakit' },
+  { id: 'card', label: 'Kredi kartı' },
+  { id: 'check', label: 'Çek' },
 ] as const
+
+// Sunucudaki yon–arac–hesap matrisiyle ayni (AccountingService.EnsureMethodMatchesAccount).
+function accountKindsFor(method: (typeof methods)[number]['id'], receipt: boolean): CashAccount['kind'][] {
+  switch (method) {
+    case 'transfer': return ['bank']
+    case 'cash': return ['cash']
+    case 'card': return receipt ? ['pos'] : ['credit_card']
+    case 'check': return ['bank', 'cash']
+  }
+}
 
 export function PaymentDialog({ open, direction, partyId, openLines, onClose, onSaved }: {
   open: boolean; direction: 'receipt' | 'disbursement'; partyId: string; openLines: LineRow[]
@@ -179,8 +189,8 @@ export function PaymentDialog({ open, direction, partyId, openLines, onClose, on
     api<CashAccount[]>('/api/cash-accounts').then((a) => setAccounts(a.filter((x) => x.isActive))).catch((e) => setError(errorText(e)))
   }, [open])
 
-  const wantedKind = methods.find((m) => m.id === method)!.account
-  const usable = accounts.filter((a) => method === 'check' ? a.kind !== 'pos' : a.kind === wantedKind)
+  const wantedKinds = accountKindsFor(method, receipt)
+  const usable = accounts.filter((a) => wantedKinds.includes(a.kind))
   useEffect(() => { setAccountId(usable[0]?.id ?? '') }, [method, accounts]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const allocTotal = toMoney(sumMicro(Object.values(alloc).map((v) => toMicro(normalizeNumber(v)))))
@@ -225,10 +235,12 @@ export function PaymentDialog({ open, direction, partyId, openLines, onClose, on
       <div className="form-grid">
         <Field label="Ödeme aracı">
           <select className="input" value={method} onChange={(e) => setMethod(e.target.value as typeof method)}>
-            {methods.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+            {methods.map((m) => <option key={m.id} value={m.id}>
+              {m.id === 'card' ? (receipt ? 'Kredi kartı (POS)' : 'Şirket kredi kartı') : m.label}
+            </option>)}
           </select>
         </Field>
-        <Field label="Kasa / banka hesabı">
+        <Field label="Kasa / banka hesabı" hint={usable.length === 0 ? 'bu araç için tanımlı hesap yok (Kasa ve Banka)' : undefined}>
           <select className="input" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
             {usable.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>

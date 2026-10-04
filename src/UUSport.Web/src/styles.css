@@ -82,8 +82,12 @@
   }
 }
 
+/* Yuksek kontrast tema bazinda ayrilir; koyu zeminde koyu metin 1,49:1 kaliyordu (X:UX-01). */
 @media (prefers-contrast: more) {
-  :root { --line: #6b7888; --ink-3: #2f3b49; }
+  :root { --line: #6b7888; --ink-2: #1f2a37; --ink-3: #2f3b49; }
+}
+@media (prefers-contrast: more) and (prefers-color-scheme: dark) {
+  :root { --line: #7d8ea3; --ink-2: #e4ebf2; --ink-3: #d0dae6; }
 }
 
 * { box-sizing: border-box; }
@@ -127,7 +131,7 @@ p { margin: 0; }
 .brand-sub { font-size: 12px; color: var(--sidebar-muted); }
 .nav-label { margin: 14px 10px 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--sidebar-muted); }
 .nav a {
-  display: flex; align-items: center; gap: 10px; min-height: 38px; padding: 7px 10px; border-radius: 8px;
+  display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 6px 10px; border-radius: 8px;
   color: var(--sidebar-ink); text-decoration: none; font-weight: 550;
 }
 .nav a:hover { background: rgba(255, 255, 255, 0.08); }
@@ -136,6 +140,20 @@ p { margin: 0; }
   margin-left: auto; min-width: 22px; padding: 1px 7px; border-radius: 99px; font-size: 12px; font-weight: 700;
   background: #ffd98a; color: #3d2600; text-align: center;
 }
+.nav-top { margin-bottom: 6px; }
+
+.nav-group { border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 2px; margin-top: 4px; }
+.nav-group summary {
+  list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  margin: 8px 10px 2px; padding: 4px 0; font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--sidebar-muted);
+}
+.nav-group summary::-webkit-details-marker { display: none; }
+.nav-group summary:hover { color: var(--sidebar-ink); }
+.nav-group summary:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+.nav-group .chevron { flex: none; transition: transform 0.15s ease; transform: rotate(90deg); }
+.nav-group:not([open]) .chevron { transform: rotate(0deg); }
+.nav-group:not([open]) summary { margin-bottom: 6px; }
 .sidebar-foot { margin-top: auto; padding: 12px 8px 0; font-size: 12px; color: var(--sidebar-muted); }
 
 .main { min-width: 0; display: flex; flex-direction: column; }
@@ -144,6 +162,10 @@ p { margin: 0; }
   padding: 8px 28px; border-bottom: 1px solid var(--line); background: var(--surface);
 }
 .topbar .who { display: flex; align-items: center; gap: 12px; color: var(--ink-2); }
+.version-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 28px;
+  background: var(--pending-soft); color: var(--pending); border-bottom: 1px solid var(--pending-line); font-weight: 600;
+}
 .content { width: min(1400px, 100%); margin: 0 auto; padding: 24px 28px 48px; }
 .page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 20px; flex-wrap: wrap; }
 .page-head .sub { color: var(--ink-3); margin-top: 6px; }
@@ -262,6 +284,17 @@ dialog::backdrop { background: rgba(7, 20, 36, 0.55); }
 .calc div { display: flex; justify-content: space-between; gap: 12px; }
 .calc .total { font-weight: 700; font-size: 15px; border-top: 1px dashed var(--line-strong); padding-top: 6px; }
 
+/* ---------- ekstre ---------- */
+.statement-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+.statement-toggle {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 650; color: var(--ink-2);
+  padding: 4px 9px; border-radius: 99px; border: 1px solid var(--line-strong); background: var(--surface-2); cursor: pointer; white-space: nowrap;
+}
+.statement-toggle input { width: 13px; height: 13px; accent-color: var(--primary); margin: 0; }
+.statement-footnote { margin-top: 10px; }
+.statement-scope { margin-top: 6px; font-weight: 650; color: var(--ink-2); }
+.statement-print-portal { display: none; }
+
 /* ---------- giris ---------- */
 .auth-wrap { min-height: 100%; display: grid; place-items: center; padding: 24px; }
 .auth-card { width: min(440px, 100%); background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 28px; box-shadow: var(--shadow); display: grid; gap: 16px; }
@@ -281,6 +314,9 @@ dialog::backdrop { background: rgba(7, 20, 36, 0.55); }
   .sidebar { position: static; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center; }
   .nav-label, .sidebar-foot, .brand-sub { display: none; }
   .nav { display: flex; flex-wrap: wrap; gap: 4px; }
+  .nav-group { border-top: 0; display: contents; }
+  .nav-group summary { display: none; }
+  .nav-group:not([open]) > .nav { display: flex !important; }
   .content { padding: 18px 16px 40px; }
   .form-grid { grid-template-columns: 1fr; }
 }
@@ -293,4 +329,23 @@ dialog::backdrop { background: rgba(7, 20, 36, 0.55); }
   .sidebar, .topbar, .actions, .btn { display: none !important; }
   .shell { display: block; }
   body { background: #fff; color: #000; }
+
+  /*
+   * Cari ekstresi penceresi acikken yalniz ekstre yazdirilir (surum 2 hazirlik notu madde 2).
+   * dialog[open] tarayicinin "ust katmaninda" calisir ve bu katman guvenilir sekilde
+   * basilmadigindan, gercek <dialog> hep gizlenir; onun yerine document.body'ye eklenmis
+   * .statement-print-portal kopyasi gosterilir (bkz. PartyPages.tsx StatementDialog).
+   */
+  dialog, dialog::backdrop { display: none !important; }
+  body:has(.statement-print-portal) .main { display: none; }
+  .statement-print-portal { display: block; }
+  /* html/body/#root ve .shell "height:100%" ile sabitlenir; icerigi gizleyince bile bu
+     yukseklik boş olarak kalip portali sayfanin altina iter. Yazdirmada bu sabitlemeyi kaldir. */
+  html:has(.statement-print-portal),
+  html:has(.statement-print-portal) body,
+  html:has(.statement-print-portal) #root,
+  html:has(.statement-print-portal) .shell { height: auto; min-height: 0; }
+  /* "Resmi Cari" tik kutusu etkilesimli bir kontroldur; yazdirilan/PDF ciktida gorunmez.
+     Filtre durumu zaten alttaki dipnot metninde yaziyor. */
+  .statement-toggle { display: none; }
 }

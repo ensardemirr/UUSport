@@ -29,6 +29,8 @@ export async function api<T>(path: string, options: Options = {}): Promise<T> {
     body,
     credentials: 'same-origin',
   })
+  const serverBuild = res.headers.get('X-App-Build')
+  if (serverBuild && serverBuild !== __APP_BUILD__) window.dispatchEvent(new Event('uusport:new-version'))
   const text = await res.text()
   let data: unknown = null
   try {
@@ -62,6 +64,7 @@ export type Me = {
   roles?: string[]
   maxDiscountPercent?: Money
   mfaEnabled?: boolean
+  onlyAdmin?: boolean
 }
 
 export type PartyKind = 'customer' | 'supplier' | 'both'
@@ -97,7 +100,12 @@ export type LineRow = {
 
 export type LedgerRow = {
   id: string; occurredOn: string; sourceType: string; sourceId: string; description: string
-  debit: Money; credit: Money; balance: Money
+  debit: Money; credit: Money; balance: Money; isOfficial: boolean
+}
+
+export type LedgerListRow = {
+  id: string; partyId: string; partyName: string; occurredOn: string; sourceType: string; sourceId: string
+  description: string; debit: Money; credit: Money; isOfficial: boolean
 }
 
 export type PaymentRow = {

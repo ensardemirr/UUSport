@@ -1,4 +1,5 @@
 using System.Text;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -8,7 +9,11 @@ using UUSport.Api.Domain;
 
 namespace UUSport.Api.Data;
 
-public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
+/// <summary>
+/// dataProtection null olabilir (dogrudan `new AppDbContext(options)` kullanan testler/tasarim
+/// zamani araclar icin); DI ortaminda Program.cs'teki AddDataProtection ile doldurulur.
+/// </summary>
+public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataProtectionProvider? dataProtection = null)
     : IdentityDbContext<AppUser, AppRole, Guid>(options)
 {
     public DbSet<Tenant> Tenants => Set<Tenant>();
@@ -62,7 +67,22 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<IdentityUserRole<Guid>>().ToTable("user_role", "identity");
         b.Entity<IdentityUserClaim<Guid>>().ToTable("user_claim", "identity");
         b.Entity<IdentityUserLogin<Guid>>().ToTable("user_login", "identity");
-        b.Entity<IdentityUserToken<Guid>>().ToTable("user_token", "identity");
+        var tokenEntity = b.Entity<IdentityUserToken<Guid>>();
+        tokenEntity.ToTable("user_token", "identity");
+        // Sifreli deger duz metinden belirgin uzun olur (IV + HMAC + base64); genel 400 karakter
+        // kuralindan (ConfigureConventions) ayrik, kirpilma riskine karsi genis tutulur.
+        tokenEntity.Property(t => t.Value).HasMaxLength(2000);
+        if (dataProtection is not null)
+        {
+            // TOTP anahtari ve kurtarma kodlari bu tabloda tutulur (S-15); Data Protection ile
+            // sifrelenir. Eski (M0 oncesi) duz metin satirlar da okunabilir kalir: cozulemezse
+            // ham deger dondurulur, bir sonraki yazimda otomatik sifrelenir.
+            var protector = dataProtection.CreateProtector("UUSport.Identity.UserToken.v1");
+            var converter = new ValueConverter<string, string>(
+                v => protector.Protect(v),
+                v => TryUnprotect(protector, v));
+            tokenEntity.Property(t => t.Value).HasConversion(converter!);
+        }
         b.Entity<IdentityRoleClaim<Guid>>().ToTable("role_claim", "identity");
 
         b.Entity<Tenant>(e =>
@@ -344,6 +364,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     /// <summary>Enum degerleri veritabaninda lower_snake_case metin olarak saklanir (PostgreSQL standardi).</summary>
     private static ValueConverter<T, string> Snake<T>() where T : struct, Enum =>
         new(v => ToSnake(v.ToString()), v => Enum.Parse<T>(FromSnake(v)));
+
+    private static string TryUnprotect(IDataProtector protector, string value)
+    {
+        try { return protector.Unprotect(value); }
+        catch (Exception) { return value; }
+    }
 
     public static string ToSnake(string name)
     {

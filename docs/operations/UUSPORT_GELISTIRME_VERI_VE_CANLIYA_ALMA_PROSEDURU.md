@@ -165,6 +165,16 @@ dogrulanan dosya sayilari esit olmadan paket kabul edilmez.
 Runtime paketi config, secrets, logs, uploads ve canli rapor klasorlerini icermez.
 Kopyalama islemi hedefteki fazla dosyalari otomatik silen ayna modu kullanmaz.
 
+### 6.1 CI/on kontrol betigi (M1, S-17, 27 Eylul 2026 - uygulandi)
+
+`scripts/ci.ps1`: derleme (uyari=hata), tum testler (sema koruma dahil, sifirdan
+veritabaninda da), gizli bilgi taramasi, gercek veri/yasakli klasor taramasi, NuGet ve
+npm bagimlilik acik taramasi. `-Fast` bayragiyla yalniz derleme + taramalar calisir
+(commit-oncesi kanca icin). Kanca kurulumu: `scripts/install-git-hooks.ps1` (elle, bir
+kez calistirilir; `.git/hooks` izlenmez). Yukaridaki paket/manifest standardini
+uygulayan bir `scripts/release.ps1` ve Windows servis kurulum betikleri (S-18) henuz
+yazilmadi; bu bolumdeki standart hala hedeftir, otomasyonu degil.
+
 ## 7. Canliya alma kapilari
 
 ### Kapi A - Gelistirme tamamlama
@@ -260,6 +270,32 @@ Uygulama geri donusu ile veritabani geri donusu ayri islemdir.
 - Ayda en az bir gercek geri yukleme testi
 - Yedek basarili mesaji tek basina yeterli degildir; acilan veritabani ve temel
   mutabakat sorgulari ile geri yukleme kanitlanir.
+
+### 10.1 Uygulama (M1, S-10, 27 Eylul 2026)
+
+- `scripts/backup.ps1`: `pg_dump` (custom format) + Data Protection anahtar klasoru,
+  parola tabanli AES-256 ile sifrelenir (`-OffsiteDir` verilirse oraya da kopyalar).
+  Sifreleme DPAPI DEGILDIR: DPAPI bu makineye baglidir, sunucu kaybedilirse DPAPI ile
+  sifrelenmis yedek de kurtarilamaz olur. Parola `UUSPORT_BACKUP_KEY` ortam degiskeninden
+  okunur ve **sunucuda saklanmaz** (sifre yoneticisinde tutulur).
+  - `pg_dump`/`pg_restore`/`createdb`/`dropdb` `postgres` superuser hesabiyla calisir
+    (`%LOCALAPPDATA%\UUSport\secrets\postgres-18-superuser.dpapi`): `uusport_owner`
+    NOSUPERUSER/NOBYPASSRLS'tir ve tablolar FORCE ROW LEVEL SECURITY tasir, yani sahibi
+    bile `app.tenant_id` olmadan satir goremez - tam yedek icin RLS'i asan tek yerel
+    hesap budur.
+- `scripts/restore-test.ps1`: en yeni sifreli yedegi bulur, cozer, gecici bir
+  veritabanina geri yukler, migration/kullanici sayimiyla dogrular, gecici veritabanini
+  her kosulda siler. Basarisizlikta cikis kodu 1 doner (izleme/uyari icin kullanilabilir).
+  Elle dogrulandi (27 Eylul 2026): dogru parolayla basarili, yanlis parolayla temiz
+  hata ile basarisiz - sessizce "basarili" gorunmuyor.
+- `scripts/protect-backup-key.ps1` + `scripts/install-scheduled-tasks.ps1`: gecelik
+  yedek (02:00) ve haftalik geri yukleme provasi (Pazar 03:00) icin Windows Gorev
+  Zamanlayici kaydi. **Bilerek otomatik calistirilmadi**: once yurt ici uzak/harici
+  yedek konumu (`-OffsiteDir`) ve parolanin sunucu disinda nerede saklanacagi karara
+  baglanmali.
+- WAL arsivleme (PITR) bu betiklerin kapsami disinda; `postgresql.conf` uzerinde
+  `archive_mode=on` + `archive_command` ile ayrica yapilandirilmalidir (canliya alma
+  oncesi, bolum 7).
 
 ## 11. ENS_Stp.App'ten aktarılan kalici dersler
 

@@ -1,4 +1,5 @@
 using System.Text.Encodings.Web;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -30,7 +31,7 @@ public sealed class MfaEnabledHandler(UserManager<AppUser> users) : Authorizatio
     }
 }
 
-public sealed record SetupInput(string OrganizationName, string UserName, string FullName, string Password);
+public sealed record SetupInput(string OrganizationName, string UserName, string FullName, string Password, string Token);
 public sealed record LoginInput(string UserName, string Password);
 public sealed record CodeInput(string Code);
 
@@ -40,15 +41,24 @@ public static class AuthEndpoints
     {
         var setup = app.MapGroup("/api/setup");
 
-        setup.MapGet("/status", async (AppDbContext db, CancellationToken ct) =>
-            Results.Ok(new { needsSetup = !await db.Users.AnyAsync(ct) }));
+        setup.MapGet("/status", async (AppDbContext db, SetupTokenService tokens, CancellationToken ct) =>
+        {
+            var needsSetup = !await db.Users.AnyAsync(ct);
+            if (needsSetup) tokens.EnsureToken();
+            return Results.Ok(new { needsSetup });
+        });
 
         // Ilk yonetici kurulum aninda olusturulur; varsayilan parola yoktur (standart 2.3).
+        // Kurulum jetonu (S-12): sunucu makinesinde uretilir, ag/internetteki baskasi ilk
+        // yonetici hesabini calamaz.
         setup.MapPost("", async (SetupInput input, AppDbContext db, UserManager<AppUser> users,
-            RoleManager<AppRole> roles, TenantContext tenant, TenantResolver resolver, AuditWriter audit, CancellationToken ct) =>
+            RoleManager<AppRole> roles, TenantContext tenant, TenantResolver resolver, AuditWriter audit,
+            SetupTokenService tokens, CancellationToken ct) =>
         {
             if (await db.Users.AnyAsync(ct))
                 throw new DomainException("setup_done", "Kurulum daha önce tamamlanmış.");
+            if (!tokens.Validate(input.Token))
+                throw new DomainException("token", "Kurulum jetonu hatalı veya süresi geçmiş. Sunucu logundaki jetonu girin.");
             var orgName = TextRules.CleanName(input.OrganizationName);
             if (orgName.Length == 0) throw new DomainException("org", "Kurum adı zorunlu.");
 
@@ -83,54 +93,112 @@ public static class AuthEndpoints
                 new CashAccount { TenantId = tenantEntity.Id, Name = "POS", Kind = CashAccountKind.Pos });
             audit.Add("setup.complete", "tenant", tenantEntity.Id, new { user = user.UserName });
             await db.SaveChangesAsync(ct);
+            tokens.Consume();
             return Results.Ok(new { ok = true });
         }).RequireRateLimiting("auth");
 
         var auth = app.MapGroup("/api/auth");
 
-        auth.MapPost("/login", async (LoginInput input, SignInManager<AppUser> signIn, UserManager<AppUser> users) =>
+        auth.MapPost("/login", async (LoginInput input, SignInManager<AppUser> signIn, UserManager<AppUser> users,
+            AppDbContext db, TenantContext tenant, HttpContext http) =>
         {
-            var user = await users.FindByNameAsync(input.UserName.Trim().ToLowerInvariant());
+            var name = input.UserName.Trim().ToLowerInvariant();
+            var user = await users.FindByNameAsync(name);
             if (user is null || !user.IsActive)
+            {
+                await LogAuthAsync(db, tenant, http, null, "auth.login_failed", new { userName = name });
                 return Results.Json(new { code = "invalid", message = "Kullanıcı adı veya parola hatalı." }, statusCode: 401);
+            }
+            // "Bu tarayicidan hatirla" (asagida /login/mfa, rememberClient:true) daha once
+            // isaretlenmisse Identity RequiresTwoFactor'u burada otomatik olarak false doner.
             var result = await signIn.PasswordSignInAsync(user, input.Password, isPersistent: false, lockoutOnFailure: true);
             if (result.IsLockedOut)
+            {
+                await LogAuthAsync(db, tenant, http, user, "auth.locked", null);
                 return Results.Json(new { code = "locked", message = "Çok sayıda hatalı deneme. Hesap geçici olarak kilitlendi." }, statusCode: 423);
+            }
             if (result.RequiresTwoFactor) return Results.Ok(new { status = "mfa_required" });
             if (!result.Succeeded)
+            {
+                await LogAuthAsync(db, tenant, http, user, "auth.login_failed", null);
                 return Results.Json(new { code = "invalid", message = "Kullanıcı adı veya parola hatalı." }, statusCode: 401);
+            }
+            await LogAuthAsync(db, tenant, http, user, "auth.login_success", null);
             return Results.Ok(new { status = user.TwoFactorEnabled ? "ok" : "mfa_setup_required" });
         }).RequireRateLimiting("auth");
 
-        auth.MapPost("/login/mfa", async (CodeInput input, SignInManager<AppUser> signIn) =>
+        auth.MapPost("/login/mfa", async (CodeInput input, SignInManager<AppUser> signIn,
+            AppDbContext db, TenantContext tenant, HttpContext http) =>
         {
+            var pending = await signIn.GetTwoFactorAuthenticationUserAsync();
             var code = new string(input.Code.Where(char.IsAsciiDigit).ToArray());
-            var result = await signIn.TwoFactorAuthenticatorSignInAsync(code, isPersistent: false, rememberClient: false);
+            // rememberClient:true -> bu tarayicida 30 gun boyunca kod tekrar sorulmaz (asagida
+            // TwoFactorRememberMeScheme cookie suresi). MFA kapatilmaz; yalniz ayni cihaz/tarayicida
+            // gunluk kullanimdaki tekrar kod girme surtunmesi azalir.
+            var result = await signIn.TwoFactorAuthenticatorSignInAsync(code, isPersistent: false, rememberClient: true);
             if (result.IsLockedOut)
+            {
+                await LogAuthAsync(db, tenant, http, pending, "auth.locked", null);
                 return Results.Json(new { code = "locked", message = "Çok sayıda hatalı deneme. Hesap geçici olarak kilitlendi." }, statusCode: 423);
+            }
             if (!result.Succeeded)
+            {
+                await LogAuthAsync(db, tenant, http, pending, "auth.mfa_failed", null);
                 return Results.Json(new { code = "invalid_code", message = "Doğrulama kodu hatalı." }, statusCode: 401);
+            }
+            await LogAuthAsync(db, tenant, http, pending, "auth.mfa_success", null);
             return Results.Ok(new { status = "ok" });
         }).RequireRateLimiting("auth");
 
-        auth.MapPost("/logout", async (SignInManager<AppUser> signIn) =>
+        // Telefon/uygulama kaybedildiginde kurtarma kodu ile giris (S-15).
+        auth.MapPost("/login/mfa/recovery", async (CodeInput input, SignInManager<AppUser> signIn,
+            AppDbContext db, TenantContext tenant, HttpContext http) =>
         {
+            var pending = await signIn.GetTwoFactorAuthenticationUserAsync();
+            var result = await signIn.TwoFactorRecoveryCodeSignInAsync(input.Code.Trim());
+            if (result.IsLockedOut)
+            {
+                await LogAuthAsync(db, tenant, http, pending, "auth.locked", null);
+                return Results.Json(new { code = "locked", message = "Çok sayıda hatalı deneme. Hesap geçici olarak kilitlendi." }, statusCode: 423);
+            }
+            if (!result.Succeeded)
+            {
+                await LogAuthAsync(db, tenant, http, pending, "auth.recovery_failed", null);
+                return Results.Json(new { code = "invalid_code", message = "Kurtarma kodu hatalı veya daha önce kullanılmış." }, statusCode: 401);
+            }
+            await LogAuthAsync(db, tenant, http, pending, "auth.recovery_used", null);
+            return Results.Ok(new { status = "ok" });
+        }).RequireRateLimiting("auth");
+
+        auth.MapPost("/logout", async (SignInManager<AppUser> signIn, UserManager<AppUser> users,
+            AppDbContext db, TenantContext tenant, HttpContext http) =>
+        {
+            var user = await users.GetUserAsync(http.User);
             await signIn.SignOutAsync();
+            await LogAuthAsync(db, tenant, http, user, "auth.logout", null);
             return Results.Ok(new { ok = true });
         });
 
-        auth.MapGet("/me", async (HttpContext http, UserManager<AppUser> users) =>
+        auth.MapGet("/me", async (HttpContext http, UserManager<AppUser> users, AppDbContext db) =>
         {
             var user = await users.GetUserAsync(http.User);
             if (user is null || !user.IsActive) return Results.Ok(new { authenticated = false });
+            var roles = await users.GetRolesAsync(user);
+            // Tek yonetici uyarisi (S-15): o kisi hesabindan cikamazsa/parolasini kaybederse
+            // kimse yonetici islemi yapamaz. Sunucu tarafinda sayilir, sahte bir sayimla atlatilamaz.
+            var onlyAdmin = roles.Contains(Roles.Yonetici) &&
+                await db.Users.CountAsync(u => u.IsActive && u.TenantId == user.TenantId
+                    && db.UserRoles.Any(ur => ur.UserId == u.Id
+                        && db.Roles.Any(r => r.Id == ur.RoleId && r.Name == Roles.Yonetici))) < 2;
             return Results.Ok(new
             {
                 authenticated = true,
                 userName = user.UserName,
                 fullName = user.FullName,
-                roles = await users.GetRolesAsync(user),
+                roles,
                 maxDiscountPercent = user.MaxDiscountPercent,
                 mfaEnabled = user.TwoFactorEnabled,
+                onlyAdmin,
             });
         });
 
@@ -160,11 +228,49 @@ public static class AuthEndpoints
             var valid = await users.VerifyTwoFactorTokenAsync(user, users.Options.Tokens.AuthenticatorTokenProvider, code);
             if (!valid) throw new DomainException("invalid_code", "Doğrulama kodu hatalı. Telefonunuzdaki saatin doğru olduğundan emin olun.");
             await users.SetTwoFactorEnabledAsync(user, true);
+            var codes = await users.GenerateNewTwoFactorRecoveryCodesAsync(user, 10);
             await signIn.RefreshSignInAsync(user);
             audit.Add("user.mfa_enabled", "user", user.Id, tenantOverride: user.TenantId);
             await db.SaveChangesAsync();
-            return Results.Ok(new { ok = true });
+            return Results.Ok(new { ok = true, recoveryCodes = codes });
         }).RequireRateLimiting("auth");
+
+        // Kurtarma kodlari tukendiginde veya sifirlanmasi istendiginde yeniden uretilir; eskileri gecersiz olur.
+        mfa.MapPost("/recovery/regenerate", async (HttpContext http, UserManager<AppUser> users,
+            AuditWriter audit, AppDbContext db) =>
+        {
+            var user = await users.GetUserAsync(http.User) ?? throw new NotFoundException("Kullanıcı");
+            if (!user.TwoFactorEnabled) throw new DomainException("mfa_disabled", "Önce iki adımlı doğrulamayı açmalısınız.");
+            var codes = await users.GenerateNewTwoFactorRecoveryCodesAsync(user, 10);
+            audit.Add("user.recovery_codes_regenerated", "user", user.Id, tenantOverride: user.TenantId);
+            await db.SaveChangesAsync();
+            return Results.Ok(new { recoveryCodes = codes });
+        }).RequireRateLimiting("auth");
+    }
+
+    /// <summary>
+    /// Giris/cikis/kilit/MFA denetimi (guvenlik standardi S-13): AuditWriter kullanmaz cunku
+    /// bu olaylar cogu zaman henuz oturum acmamis (ICurrentUser bos) bir istek sirasinda olusur.
+    /// IP adresi guvenlik sorusturmasi icin gerekli; kisisel veri (ad, telefon) tasimaz.
+    /// </summary>
+    private static async Task LogAuthAsync(AppDbContext db, TenantContext tenant, HttpContext http,
+        AppUser? user, string action, object? extra)
+    {
+        var tenantId = user?.TenantId ?? tenant.TenantId;
+        if (tenantId is null) return;
+        db.AuditEvents.Add(new AuditEvent
+        {
+            TenantId = tenantId.Value,
+            UserId = user?.Id,
+            UserName = user?.UserName,
+            Action = action,
+            TargetType = "user",
+            TargetId = user?.Id,
+            CorrelationId = http.TraceIdentifier,
+            IpAddress = http.Connection.RemoteIpAddress?.ToString(),
+            Summary = extra is null ? null : JsonSerializer.Serialize(extra),
+        });
+        await db.SaveChangesAsync();
     }
 
     private static string FormatKey(string key) =>

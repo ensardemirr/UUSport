@@ -256,9 +256,15 @@ public sealed class ImportService(AppDbContext db, TenantContext tenant, ICurren
         var balance = ParseMoney(v.GetValueOrDefault("acilis_bakiyesi"), "Açılış bakiyesi", errors);
 
         var parentKey = phone ?? TextRules.SearchKey(parent);
-        var existing = (phone is not null ? ctx.PartiesByPhone.GetValueOrDefault(phone) : null)
-                       ?? ctx.PartiesByName.GetValueOrDefault(TextRules.SearchKey(parent));
-        if (existing is not null) warnings.Add($"Mevcut cariye bağlanacak: {existing.Code} {existing.Name}.");
+        // Telefon eslesirse guvenli sekilde mevcut cariye baglanir. Telefon yoksa/eslesmezse SADECE
+        // isme bakarak birlestirme yapilmaz (X:DATA-01): iki farkli veli ayni adi tasiyabilir. Bu
+        // durumda yeni cari acilir, ama kullaniciyi uyarmak icin olasi eslesme bilgi olarak gosterilir.
+        var matchedByPhone = phone is not null ? ctx.PartiesByPhone.GetValueOrDefault(phone) : null;
+        var possibleNameMatch = matchedByPhone is null ? ctx.PartiesByName.GetValueOrDefault(TextRules.SearchKey(parent)) : null;
+        if (matchedByPhone is not null) warnings.Add($"Mevcut cariye bağlanacak: {matchedByPhone.Code} {matchedByPhone.Name}.");
+        else if (possibleNameMatch is not null)
+            warnings.Add($"DİKKAT: '{possibleNameMatch.Code} {possibleNameMatch.Name}' adında bir cari zaten var ama telefon eşleşmedi; " +
+                "otomatik birleştirilmeyecek, yeni ve ayrı bir cari olarak eklenecek. Aynı kişiyse aktarımdan sonra elle birleştirin.");
         if (!seen.Add($"{parentKey}|{TextRules.SearchKey(first, last)}"))
             warnings.Add("Aynı veli ve öğrenci dosyada tekrar ediyor; ikinci kez oluşturulmayacak.");
         if (balance is not null) warnings.Add("Açılış bakiyesi cariye doğrudan yazılmaz; muhasebe onayına düşer.");
@@ -346,9 +352,10 @@ public sealed class ImportService(AppDbContext db, TenantContext tenant, ICurren
             var phone = v["veli_telefon"];
             var parentName = v["veli_adi"]!;
             var key = phone ?? TextRules.SearchKey(parentName);
+            // Telefon yoksa isme bakarak mevcut cariye baglanmaz (bkz. ValidateStudent); yalniz
+            // ayni dosya icindeki tekrarlar (created) ve telefon eslesmesi guvenli sayilir.
             var party = created.GetValueOrDefault(key)
-                        ?? (phone is not null ? ctx.PartiesByPhone.GetValueOrDefault(phone) : null)
-                        ?? ctx.PartiesByName.GetValueOrDefault(TextRules.SearchKey(parentName));
+                        ?? (phone is not null ? ctx.PartiesByPhone.GetValueOrDefault(phone) : null);
             if (party is null)
             {
                 party = NewParty(batch, $"C{nextCode++:000000}", parentName, PartyKind.Customer, phone, null, null);

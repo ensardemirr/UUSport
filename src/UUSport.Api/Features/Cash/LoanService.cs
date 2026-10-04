@@ -93,23 +93,47 @@ public sealed class LoanService(AppDbContext db, TenantContext tenant, ICurrentU
         return loan;
     }
 
-    /// <summary>Taksit odemesi ADR-004'u degistirmez: normal bir Payment(Disbursement) uretir.</summary>
-    public async Task PayInstallmentAsync(Guid loanId, int installmentNo, PayInstallmentInput input, CancellationToken ct)
+    /// <summary>
+    /// Taksit odemesi ADR-004'u degistirmez: normal bir Payment(Disbursement) uretir. Odeme ve taksit baglantisi
+    /// tek transaction'dadir (S-02). Gerceklesme tarihi verilmezse bugun kullanilir; vade tarihi ayridir (X:CSH-06).
+    /// Iptal edilmis odemeye bagli taksit yeniden odenebilir (X:CSH-04).
+    /// </summary>
+    public Task PayInstallmentAsync(Guid loanId, int installmentNo, PayInstallmentInput input, CancellationToken ct) =>
+        accounting.InTransactionAsync(async () =>
+        {
+            var loan = await db.Loans.SingleOrDefaultAsync(l => l.Id == loanId, ct) ?? throw new NotFoundException("Kredi");
+            var installmentId = await db.LoanInstallments.Where(i => i.LoanId == loanId && i.InstallmentNo == installmentNo)
+                                    .Select(i => (Guid?)i.Id).SingleOrDefaultAsync(ct)
+                                ?? throw new NotFoundException("Taksit");
+            await accounting.LockAsync(LockTable.LoanInstallment, [installmentId], ct);
+            var installment = await db.LoanInstallments.SingleAsync(i => i.Id == installmentId, ct);
+            if (await IsEffectivelyPaidAsync(installment.PaymentId, ct))
+                throw new DomainException("already_paid", "Bu taksit zaten ödenmiş.");
+
+            var total = Money.Round(installment.PrincipalAmount + installment.InterestAmount + installment.FeeAmount);
+            var payment = await accounting.CreatePaymentAsync(new PaymentInput(
+                loan.PartyId, PaymentDirection.Disbursement, input.Method, input.CashAccountId, total,
+                input.OccurredOn ?? DateOnly.FromDateTime(DateTime.Now), input.Reference,
+                $"Kredi taksiti {installmentNo} — {loan.Name}", null), ct);
+
+            var previousPaymentId = installment.PaymentId;
+            installment.PaymentId = payment.Id;
+            audit.Add("loan.installment_pay", "loan_installment", installment.Id,
+                new { loanId, installmentNo, total, paymentId = payment.Id, previousReversedPaymentId = previousPaymentId });
+            await db.SaveChangesAsync(ct);
+        }, ct);
+
+    private async Task<bool> IsEffectivelyPaidAsync(Guid? paymentId, CancellationToken ct) =>
+        paymentId is { } id && !await db.Payments.AnyAsync(p => p.ReversesPaymentId == id, ct);
+
+    /// <summary>Odemesi iptal edilmis taksitler "odenmemis" sayilir.</summary>
+    private async Task<HashSet<Guid>> ReversedPaymentIdsAsync(IEnumerable<LoanInstallment> installments, CancellationToken ct)
     {
-        var loan = await db.Loans.SingleOrDefaultAsync(l => l.Id == loanId, ct) ?? throw new NotFoundException("Kredi");
-        var installment = await db.LoanInstallments.SingleOrDefaultAsync(i => i.LoanId == loanId && i.InstallmentNo == installmentNo, ct)
-                          ?? throw new NotFoundException("Taksit");
-        if (installment.PaymentId is not null) throw new DomainException("already_paid", "Bu taksit zaten ödenmiş.");
-
-        var total = Money.Round(installment.PrincipalAmount + installment.InterestAmount + installment.FeeAmount);
-        var payment = await accounting.CreatePaymentAsync(new PaymentInput(
-            loan.PartyId, PaymentDirection.Disbursement, input.Method, input.CashAccountId, total,
-            input.OccurredOn ?? installment.DueDate, input.Reference,
-            $"Kredi taksiti {installmentNo} — {loan.Name}", null), ct);
-
-        installment.PaymentId = payment.Id;
-        audit.Add("loan.installment_pay", "loan_installment", installment.Id, new { loanId, installmentNo, total, paymentId = payment.Id });
-        await db.SaveChangesAsync(ct);
+        var ids = installments.Where(i => i.PaymentId != null).Select(i => i.PaymentId!.Value).ToList();
+        if (ids.Count == 0) return [];
+        var reversed = await db.Payments.Where(p => p.ReversesPaymentId != null && ids.Contains(p.ReversesPaymentId!.Value))
+            .Select(p => p.ReversesPaymentId!.Value).ToListAsync(ct);
+        return reversed.ToHashSet();
     }
 
     public async Task<List<LoanRow>> ListAsync(CancellationToken ct)
@@ -123,20 +147,27 @@ public sealed class LoanService(AppDbContext db, TenantContext tenant, ICurrentU
         var accounts = await db.CashAccounts.Where(a => accountIds.Contains(a.Id)).ToDictionaryAsync(a => a.Id, a => a.Name, ct);
         var installments = await db.LoanInstallments.Where(i => ids.Contains(i.LoanId)).ToListAsync(ct);
         var byLoan = installments.GroupBy(i => i.LoanId).ToDictionary(g => g.Key, g => g.ToList());
+        var reversed = await ReversedPaymentIdsAsync(installments, ct);
 
         return loans.Select(l =>
         {
             var list = byLoan.GetValueOrDefault(l.Id, []);
-            var unpaid = list.Where(i => i.PaymentId is null).OrderBy(i => i.DueDate).ToList();
+            var unpaid = list.Where(i => i.PaymentId is not { } p || reversed.Contains(p)).OrderBy(i => i.DueDate).ToList();
             return new LoanRow(l.Id, l.PartyId, parties.GetValueOrDefault(l.PartyId, ""), l.CashAccountId,
                 accounts.GetValueOrDefault(l.CashAccountId, ""), l.Name, l.PrincipalAmount, l.StartDate, l.IsActive,
                 list.Count, list.Count - unpaid.Count, unpaid.Sum(i => i.PrincipalAmount), unpaid.FirstOrDefault()?.DueDate);
         }).ToList();
     }
 
-    public async Task<List<LoanInstallmentRow>> InstallmentsAsync(Guid loanId, CancellationToken ct) =>
-        await db.LoanInstallments.Where(i => i.LoanId == loanId).OrderBy(i => i.InstallmentNo)
-            .Select(i => new LoanInstallmentRow(i.Id, i.InstallmentNo, i.DueDate, i.PrincipalAmount, i.InterestAmount,
-                i.FeeAmount, i.PrincipalAmount + i.InterestAmount + i.FeeAmount, i.PaymentId != null, i.PaymentId))
-            .ToListAsync(ct);
+    public async Task<List<LoanInstallmentRow>> InstallmentsAsync(Guid loanId, CancellationToken ct)
+    {
+        var list = await db.LoanInstallments.Where(i => i.LoanId == loanId).OrderBy(i => i.InstallmentNo).ToListAsync(ct);
+        var reversed = await ReversedPaymentIdsAsync(list, ct);
+        return list.Select(i =>
+        {
+            var paid = i.PaymentId is { } p && !reversed.Contains(p);
+            return new LoanInstallmentRow(i.Id, i.InstallmentNo, i.DueDate, i.PrincipalAmount, i.InterestAmount,
+                i.FeeAmount, i.PrincipalAmount + i.InterestAmount + i.FeeAmount, paid, paid ? i.PaymentId : null);
+        }).ToList();
+    }
 }
