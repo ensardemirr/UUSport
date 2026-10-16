@@ -1,10 +1,10 @@
 # UU Sport Ana Hafiza
 
-**Surum:** 2.8  
+**Surum:** 2.9  
 **Olusturma tarihi:** 23 Eylul 2026  
-**Son guncelleme:** 27 Eylul 2026  
+**Son guncelleme:** 16 Ekim 2026  
 **Ilk yazar:** Codex  
-**Durum:** Surum 0.1 gelistirme ortaminda calisiyor; kullanici denemesi bekleniyor. Canli kurulum yok.
+**Durum:** Surum 0.1 gelistirme ortaminda calisiyor; M0 tamamlandi, M1 buyuk olcude tamamlandi (kalanlar bolum 11). Siradaki: M1 kalanlari ve M2. Canli kurulum yok.
 
 Bu dosya UU Sport / PSG Academy Samsun projesinin tek guncel proje hafizasidir.
 Claude Code ve Codex her calismanin basinda bu dosyayi okur. Dosya parola, API
@@ -15,8 +15,8 @@ anahtari veya gercek ogrenci/veli verisi icermez.
 - `[DOGRU]` Proje koku: `C:\UUSport`
 - `[DOGRU]` VS Code bu klasorde acik ve calisma alani guvenilir.
 - `[DOGRU]` Klasor ayri bir Obsidian kasasi olarak tanimli.
-- `[DOGRU]` Git deposu olusturuldu; dal `master`. Denetim devri icin guvenli
-  proje dosyalari yerel Git'e kaydedildi; uzak depo/remote henuz tanimli degil.
+- `[DOGRU]` Git deposu var; ana dal `master`. Uzak depo GitHub'da tanimli
+  (`ensardemirr/UUSport`); son commit `6f799d3` (04.10.2026, M0 + M1).
 - `[DOGRU]` Gelistirme makinesi `BAKON-DEV01` (kullanici `Ensaradmin`): PostgreSQL 18.6
   kullanici modu kumesi yerel geri dongu adreslerinde (`127.0.0.1:5432` ve `[::1]:5432`)
   calisiyor. Canli hedef bilgisayar henuz kurulmadi ve bu satir onu kapsamaz.
@@ -26,6 +26,10 @@ anahtari veya gercek ogrenci/veli verisi icermez.
   EF Core migration `InitialSchema`, RLS ve rol yetkileri uygulandi. 31 otomatik test ve
   44 kontrollu uctan uca duman testi gecti. Masaustunde "UU Sport" kisayolu var.
   Ayrinti: bolum 5.5. Canliya alinmadi; canli paket ve kurulum henuz yok.
+- `[DOGRU]` 27 Eylul 2026: dis danisma sentezindeki M0 (dogrulanmis hatalar) tamamlandi,
+  M1 (guvenli isletim temeli) buyuk olcude tamamlandi; 4 migration, 72 test geciyor
+  (son kayit). Ayrinti: degisiklik gecmisi 2.7 ve 2.8, plan:
+  `docs/reviews/UUSPORT_DANISMA_SENTEZ_2026-09-27.md`.
 - `[KARAR]` Gunluk guncel ogrenci aktariminin tek kaynagi Excel'deki `Sayfa1 (2)`
   sayfasidir. Benzer isimli sayfalar otomatik birlestirilmeyecek.
 - `[KARAR]` Gercek cocuk, sporcu ve veli verisi gelistirme/test ortamlarina veya
@@ -80,8 +84,8 @@ anahtari veya gercek ogrenci/veli verisi icermez.
   `docs/standards/UUSPORT_GUVENLIK_STANDARDI.md`. Guvenlik konularinda esastir.
 - `[DOGRU]` Sirketin alan adi yok (kullanici beyani, 26.09.2026). Faz 1 yerel ag HTTPS icin
   ic sertifika otoritesi kullanilacak; Faz 2 oncesi sirket adina alan adi alinmasi zorunlu.
-- `[KARAR]` 25 Eylul 2026'da kullanici gelistirmeye ara verip simdiye kadarki
-  calismalarin Claude Code tarafindan bastan sona bagimsiz denetlenmesini istedi.
+- `[DOGRU]` (Tarihsel) 25 Eylul 2026'da gelistirmeye denetim icin ara verilmisti; denetim
+  tamamlandi ve gelistirme 26 Eylul'de yeniden basladi. Bu ara artik gecerli degildir.
   Denetim promptu: `docs/reviews/CLAUDE_CODE_UUSPORT_TAM_DENETIM_PROMPTU_2026-09-25.md`.
 - `[DOGRU]` Canli kurulum paketi, canli ortam ve canliya alim yoktur. Gelistirme
   ortaminda calisan surum 0.1 vardir (yukarida).
@@ -360,7 +364,8 @@ kume kurar; gecerli yol kullanici modu kumesidir (denetim Y1). Bu iki betik yeni
 - Ilk acilista **ilk kurulum** ekrani cikar: kurum adi ve ilk yonetici hesabi olusturulur
   (varsayilan parola yoktur). Ardindan iki adimli dogrulama (Microsoft/Google
   Authenticator) kurulmadan hicbir veri ekrani acilmaz.
-- Derleme ve testler: `tools/build-uusport.ps1` (web + API + 31 test).
+- Derleme ve testler: `tools/build-uusport.ps1` (web + API + tum testler; son kayit 72 test).
+- Tam kontrol (derleme, testler, gizli bilgi/gercek veri/acik taramasi): `scripts/ci.ps1`.
 - Yeni veritabani/rol kurulumu: `tools/setup-uusport-dev-db.ps1`.
 - Kisayolu yeniden olusturma: `tools/create-desktop-shortcut.ps1`.
 
@@ -453,7 +458,9 @@ denenmeden guvenilir sayilmaz (operasyon proseduru Kapi C/D ile uyumlu).
 
 - Diger bilgisayarlardan (yerel ag) erisim kapali; acmak icin ic sertifika otoritesiyle
   HTTPS ve `AllowedHosts` ayari gerekir (guvenlik standardi bolum 6, 13).
-- Canli paket (publish, manifest, SHA256, kurulum/geri alma betikleri) ve yedekleme yok.
+- Canli paket (publish, manifest, SHA256, kurulum/geri alma betikleri) yok. Yedek ve geri
+  yukleme provasi betikleri var (`scripts/backup.ps1`, `scripts/restore-test.ps1`) ama
+  zamanlanmis gorev kurulmadi (yedek konumu ve parola saklama karari bekliyor).
 - Stopajli belgeler (serbest meslek, kira), aidat tahakkuku, e-belge entegratoru,
   GMS.NET aktarimi, KDV simulasyonu ve odeme takvimi raporlari yok (ADR-005).
 - Web arayuzunde `oxlint` uslup uyarilari var (form sifirlama efektleri); islevi etkilemez.
@@ -461,11 +468,10 @@ denenmeden guvenilir sayilmaz (operasyon proseduru Kapi C/D ile uyumlu).
 
 ### 5.4 Git durumu
 
-- Git deposu olusturuldu.
-- Dal: `master`
+- Git deposu olusturuldu; ana dal `master`.
 - Ilk yerel commit 25 Eylul 2026'da denetim devri icin olusturuldu.
-- Uzak Git deposu (remote) henuz tanimlanmadi; bu commit baska RDP'ye
-  kendiliginden aktarilmaz.
+- Uzak depo GitHub'da tanimli: `ensardemirr/UUSport`. Son commit `6f799d3`
+  (04.10.2026, M0 + M1). Baska RDP'ye tasima bu depodan klonlayarak yapilir.
 - `.env`, anahtarlar, sertifikalar, yedekler, loglar, kurulum dosyalari ve yerel
   Obsidian ayarlari Git disinda tutulur.
 
@@ -478,6 +484,7 @@ C:\UUSport
 |-- README.md
 |-- UUSport.slnx           # .NET cozumu
 |-- dotnet-tools.json      # yerel arac (dotnet-ef) surumu
+|-- scripts/              # ci, yedek, geri yukleme provasi, git hook betikleri
 |-- database/              # bos; migration'lar API projesinde (EF Core)
 |-- deployment/            # test/canli dagitim tanimlari; su an bos
 |-- docs/
@@ -588,10 +595,12 @@ durumlar kullanilir.
 
 `[KARAR]` Para tipi, yuvarlama ve KDV kurali ADR-002'de; harmanlama ve Turkce metin
 kurallari ADR-003'te baglayicidir. Spesifikasyon bolum 14'teki `bigint` kurus kurali
-ADR-002 ile gecersizdir. `[ACIK]` Bu kararlarin standart belgesine islenmesi bekliyor.
+ADR-002 ile gecersizdir. `[DOGRU]` Bu kararlar standart belgesine islendi (bolum para ve
+harmanlama).
 
-`[ACIK]` Migration araci teknoloji ADR'sinden sonra secilecek. Arac secilene ve
-schema tasarimi onaylanana kadar tablo/migration olusturulmayacak.
+`[DOGRU]` Migration araci EF Core secildi (bolum 5.6). Migration'lar
+`src/UUSport.Api/Data/Migrations` altindadir; su an 4 migration var (InitialSchema,
+AddLoansChecksAndAccountCodes, FixAppendOnlyGrants, M1SecurityHardening).
 
 Ayrintili standart:
 `docs/standards/UUSPORT_POSTGRESQL_ADLANDIRMA_VE_MIGRATION_STANDARDI.md`
@@ -622,7 +631,12 @@ Ayrintili standart:
 1. ~~Teknoloji yigini icin ADR hazirla ve onayla.~~ Tamamlandi: ADR-001, 26.09.2026.
 2. ~~MVP kapsami~~ Tamamlandi: ADR-005.
 3. ~~Sema, migration, uygulama iskeleti ve surum 0.1~~ Tamamlandi: 26.09.2026 (bolum 5.5).
-4. Kullanici surum 0.1'i sentetik veriyle dener; geri bildirime gore duzeltme.
+4. ~~Kullanici surum 0.1'i sentetik veriyle dener~~ Deneme yapildi; geri bildirimler
+   islendi. Dis danisma sentezindeki M0 tamamlandi, M1 buyuk olcude tamamlandi.
+   M1 kalani: S-16 (gercek Excel'in proje disina tasinmasi, kullanici eylemi), S-18
+   (Windows servisi + release paketleme), S-11 kalani (HTTPS sertifikasi, guvenlik
+   duvari, BitLocker), yedek zamanlanmis gorevinin kurulmasi. Sonra M2 (S-20..S-27).
+   Kullanici kararlari KU-1..KU-7 bekliyor (sentez bolum 6).
 5. `[KULLANICI KARARI]` 26.09.2026: **yedekleme erken alinacak**, sona birakilmayacak.
    PostgreSQL gelistirme kumesi icin gunluk tam yedek + gercek geri yukleme provasi
    (operasyon proseduru bolum 10) gercek veri gelmeden, sentetik veriyle simdi
@@ -662,6 +676,7 @@ Ayrintili standart:
 
 | Tarih | Surum | Yazan | Degisiklik |
 |---|---:|---|---|
+| 16.10.2026 | 2.9 | Claude Code | Eskimis ifadeler duzeltildi: durum satiri ve hizli durum M0/M1 ilerlemesiyle guncellendi; uzak depo (GitHub) ve son commit kaydedildi; 25.09 denetim arasi tarihsel olarak isaretlendi; test sayisi 31 -> 72; yedek betiklerinin varligi bilinen sinirlara islendi; migration araci `[ACIK]` -> `[DOGRU]` EF Core (4 migration); ADR-002/003'un standarda islendigi dogrulandi; siradaki calisma sirasi M1 kalanlari ve M2 ile guncellendi. Kod degisikligi yok. |
 | 27.09.2026 | 2.8 | Claude Code | `[KULLANICI KARARI]` M1'e gecildi (Sonnet 5, orta efor). **S-12** kurulum ucu tek kullanimlik jetonla kilitlendi (`SetupTokenService`, sunucu logunda bir kez gorunur). **S-13** giris/cikis/kilit/MFA basari-basarisiz olaylari IP ile denetim kaydina yaziliyor (`AuditEvent.IpAddress`, yeni sutun). **S-14** `EndpointAuthorizationTests`: calisan uygulamada `EndpointDataSource`'tan TUM `/api` uclarini kesfedip oturumsuz istekte 401, Muhasebe rolunde yonetici-ozel uclarda 403 dogrular; elle bir admin-only korumasi silinerek testin gercekten kirmizi oldugu gosterildi (append-only testiyle ayni disiplin). **S-15** MFA sertlestirme: TOTP anahtari/kurtarma kodlari artik Data Protection ile sifreli saklaniyor (eski duz metin de okunabilir kalir, sonraki yazimda sifrelenir); kurtarma kodlari (10 adet) MFA acilinca gosteriliyor, giriste kurtarma kodu secenegi var; sunucu CLI'sinda `reset-mfa --user=` acil durum sifirlamasi (yalniz makine erisimi olanlar); oturum hareketsizlik zaman asimi 8 saatten 30 dakikaya cekildi (kaydirmali); tek yonetici uyarisi (`/api/auth/me.onlyAdmin`, arayuzde banner); anonim `/api/health` artik surum/migration bilgisi vermiyor. **S-19** Excel aktariminda telefon yoksa/eslesmezse artik SADECE isme bakarak mevcut cariye otomatik birlesme YAPILMAZ (X:DATA-01, iki test ile kanitlandi); zip bomb korumasi (sikistirilmamis boyut sinirlanir, acmadan once kontrol edilir). **S-11** kismi: HSTS eklendi (duz HTTP'de zararsiz, HTTPS acilinca aktif). **S-17** `scripts/ci.ps1` uygulandi ve calistirildi: derleme (uyari=hata), tum testler, gizli bilgi taramasi, gercek veri taramasi, NuGet/npm acik taramasi; `-Fast` bayragi + `scripts/install-git-hooks.ps1` (commit-oncesi, elle kurulur). **S-10** `scripts/backup.ps1` + `scripts/restore-test.ps1` yazildi VE uctan uca calistirilarak dogrulandi (dogru parolada basarili, yanlis parolada temiz basarisizlik): parola tabanli AES-256 (DPAPI DEGIL - felaket kurtarma icin sunucudan bagimsiz olmali), `postgres` superuser ile (uusport_owner FORCE RLS altinda kendi verisini bile goremez). Zamanlanmis gorev kurulumu (`install-scheduled-tasks.ps1`) YAZILDI ama calistirilmadi - yurt ici yedek konumu ve parola saklama karari kullanicidan bekliyor. 72 test geciyor. **Ertelenen (henuz baslanmadi):** S-16 (gercek Excel dosyasinin proje disina tasinmasi - kullanici eylemi), S-18 (Windows servisi + release paketleme betikleri), S-11'in kalani (fiziksel HTTPS sertifikasi, guvenlik duvari, BitLocker - sunucu donanimi belli olunca). |
 | 27.09.2026 | 2.7 | Claude Code | `[KULLANICI KARARI]` Sentez plani onaylandi, M0'dan baslandi; "Resmi Cari" dugmesi **"Muhasebe Gorunumu"** oldu, "Gayri resmi" metni kaldirildi ("Belgelendi / Belge bekliyor"); gelistirme veritabanindaki deneme kayitlari kullanici beyaniyla tamamen uydurma. **M0 tamamlandi (S-01..S-08):** `20260927143530_FixAppendOnlyGrants` migration'i append-only yetki hatasini onardi (uusport, uusport_test uygulandi); `SchemaGuardTests` her kosuda sifir veritabani kurup RLS/FORCE/politika ve append-only yetkilerini katalogdan dogrular (duzeltme kapaliyken kirmizi oldugu gosterildi); finansal komutlar tek transaction + `FOR UPDATE` kilidiyle (kilitsizken es zamanli testler 3/3 kirmizi, kilitle yesil); iade sonrasi acik tutar net tutardan, fazla dagitim avansa doner; iptal edilen odemeye bagli kredi taksiti yeniden acilir; kredi/cek gerceklesme tarihi vade degil islem tarihi; yon–arac–hesap matrisi (musteri kart tahsilati yalniz POS); tahsil edilmis ceke bagli tahsilat genel iptalle geri alinamaz; koyu+yuksek kontrast duzeltildi; arayuzden gelistirici dili kaldirildi; muhasebe gorunumunde tutarsiz yuruyen bakiye gizlendi (kalici cozum M2/S-21); surum degisince "Yenile" bandi (`X-App-Build`, `wwwroot/version.json`). 69 test geciyor; ekran goruntusu ve PDF ile dogrulandi. Siradaki: M1 (yedek, HTTPS, kurulum jetonu, giris denetimi, CI...). |
 | 27.09.2026 | 2.6 | Claude Code | Dis danisma raporlari geldi (Claude: `UUSPORT_DANISMA_CLAUDE_2026-09-27.md`, Codex/GPT: `UUSPORT_DANISMA_CODEX_2026-09-27.md`) ve degerlendirildi: `docs/reviews/UUSPORT_DANISMA_SENTEZ_2026-09-27.md` (`[ONERI]`, birlesik is listesi M0-M8, ADR adaylari 006-017, KU/MM/AV sorulari). **`[RISK]` dogrulanan P0 hata:** sifirdan kurulan veritabaninda `uusport_app` rolu append-only tablolarda (ledger_entry, stock_movement, audit_event, payment_allocation) UPDATE yetkisine sahip; 2. migration'daki `ApplySchemaGrants` yetkiyi geri veriyor. `uusport`/`uusport_test` etkilenmemis (duzeltme oncesi hali uygulanmisti); testler bu yuzden hatayi gizledi. Canli kurulumdan once S-01 ile duzeltilecek. Ayrica dogrulandi: iade sonrasi acik tutar hatasi, taksit odemesi iptalinde taksit odenmis kaliyor, koyu+yuksek kontrast temada ikincil metin 1,49:1. Ana hafizada "gercek veri korundu" ifadeleri "gelistirme veritabanindaki deneme kayitlari" olarak duzeltildi (Codex notu). |
