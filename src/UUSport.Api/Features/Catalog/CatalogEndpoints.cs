@@ -57,8 +57,10 @@ public static class CatalogEndpoints
             var stock = await db.StockMovements.Where(m => ids.Contains(m.ItemId))
                 .GroupBy(m => m.ItemId).Select(x => new { x.Key, Qty = x.Sum(m => m.Quantity) })
                 .ToDictionaryAsync(x => x.Key, x => x.Qty, ct);
+            var codes = await db.Tenants.ToDictionaryAsync(t => t.Id, t => t.Code, ct);
             return Results.Ok(list.Select(i => new
             {
+                company = codes.GetValueOrDefault(i.TenantId, ""),
                 i.Id, i.Code, i.Name, kind = AppDbContext.ToSnake(i.Kind.ToString()), i.Unit, i.UnitPrice,
                 i.PriceIncludesVat, i.VatRate, i.AccountCode, i.IsActive,
                 stockOnHand = i.Kind == ItemKind.Stock ? stock.GetValueOrDefault(i.Id) : (decimal?)null,
@@ -108,8 +110,10 @@ public static class CatalogEndpoints
                                       In = g.Where(p => (p.Direction == PaymentDirection.Receipt) == (p.ReversesPaymentId == null)).Sum(p => p.Amount),
                                       Out = g.Where(p => (p.Direction == PaymentDirection.Receipt) != (p.ReversesPaymentId == null)).Sum(p => p.Amount),
                                   }).ToDictionaryAsync(x => x.Key, x => x.In - x.Out, ct);
+            var codes = await db.Tenants.ToDictionaryAsync(t => t.Id, t => t.Code, ct);
             return Results.Ok(accounts.Select(a => new
             {
+                company = codes.GetValueOrDefault(a.TenantId, ""),
                 a.Id, a.Name, kind = AppDbContext.ToSnake(a.Kind.ToString()), a.IsActive, balance = balances.GetValueOrDefault(a.Id),
                 a.ParentAccountId, parentAccountName = a.ParentAccountId is { } pid ? names.GetValueOrDefault(pid) : null,
             }));

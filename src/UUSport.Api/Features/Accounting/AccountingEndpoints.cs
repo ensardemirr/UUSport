@@ -138,15 +138,17 @@ public static class AccountingEndpoints
         g.MapGet("/ledger", async (Guid? partyId, DateOnly? from, DateOnly? to, AccountingQueries q, CancellationToken ct) =>
             Results.Ok(await q.AllLedgerAsync(partyId, from, to, ct))).RequirePermission(Permissions.LedgerRead);
 
-        g.MapGet("/dashboard", async (AppDbContext db, AccountingQueries q, CancellationToken ct) =>
+        g.MapGet("/dashboard", async (AppDbContext db, AccountingQueries q, TenantContext tenant, CancellationToken ct) =>
         {
             var today = DateOnly.FromDateTime(DateTime.Now);
             var monthStart = new DateOnly(today.Year, today.Month, 1);
             var payments = await q.PaymentsAsync(null, ct, monthStart, today);
             var receiptsThisMonth = payments.Where(p => p.Direction == "receipt").Sum(p => p.IsReversal ? -p.Amount : p.Amount);
             var receiptsToday = payments.Where(p => p.Direction == "receipt" && p.OccurredOn == today).Sum(p => p.IsReversal ? -p.Amount : p.Amount);
-            var balances = await db.LedgerEntries.GroupBy(e => e.PartyId)
-                .Select(x => x.Sum(e => e.Debit - e.Credit)).ToListAsync(ct);
+            var balanceRows = await db.LedgerEntries.GroupBy(e => new { e.TenantId, e.PartyId })
+                .Select(x => new { x.Key.TenantId, Balance = x.Sum(e => e.Debit - e.Credit) }).ToListAsync(ct);
+            var balances = balanceRows.Select(b => b.Balance).ToList();
+            var codes = await q.CompanyCodesAsync(ct);
             var pending = await q.PendingWorkAsync(ct);
             return Results.Ok(new
             {
@@ -158,6 +160,17 @@ public static class AccountingEndpoints
                 unallocatedPayments = pending.UnallocatedPayments.Count,
                 pendingOpeningBalances = pending.PendingOpeningBalances.Count,
                 recentPayments = payments.Take(8),
+                // Birlesik gorunumde sirketler sessizce toplanmaz; her sirketin payi ayri verilir.
+                totalsByCompany = codes.Where(c => tenant.ReadTenantIds.Contains(c.Key)).OrderBy(c => c.Value).Select(c => new
+                {
+                    company = c.Value,
+                    receiptsToday = payments.Where(p => p.Company == c.Value && p.Direction == "receipt" && p.OccurredOn == today)
+                        .Sum(p => p.IsReversal ? -p.Amount : p.Amount),
+                    receiptsThisMonth = payments.Where(p => p.Company == c.Value && p.Direction == "receipt")
+                        .Sum(p => p.IsReversal ? -p.Amount : p.Amount),
+                    openReceivables = balanceRows.Where(b => b.TenantId == c.Key && b.Balance > 0).Sum(b => b.Balance),
+                    customerAdvances = -balanceRows.Where(b => b.TenantId == c.Key && b.Balance < 0).Sum(b => b.Balance),
+                }),
             });
         }).RequirePermission(Permissions.LedgerRead);
     }

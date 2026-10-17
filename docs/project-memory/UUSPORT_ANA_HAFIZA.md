@@ -1,6 +1,6 @@
 # UU Sport Ana Hafiza
 
-**Surum:** 3.3  
+**Surum:** 3.4  
 **Olusturma tarihi:** 23 Eylul 2026  
 **Son guncelleme:** 17 Ekim 2026  
 **Ilk yazar:** Codex  
@@ -692,6 +692,7 @@ Ayrintili standart:
 
 | Tarih | Surum | Yazan | Degisiklik |
 |---|---:|---|---|
+| 17.10.2026 | 3.4 | Claude Code | **M1.5 madde 3:** liste satirlarina sirket kodu (`company`) ve rapor/pano `totalsByCompany` kirilimi eklendi; daily-collections birlesik gorunumde sirket bazinda ayri satir. 82 test yesil. Ayrinti: devir notu 2.7. |
 | 17.10.2026 | 3.3 | Claude Code | **M1.5 MultiCompanyTests yazildi** (`tests/UUSport.Tests/MultiCompanyTests.cs`, 9 test; toplam 81 test, `tools/build-uusport.ps1` yesil). Testler iki **gercek hata** yakaladi ve duzeltildi: denetim kaydi (`audit.audit_event`, RLS tekil yazma sirketi) baska sirketin kimligiyle yazilinca 500 veriyordu; bu yuzden ev sirketi ilk sirket (UUS) olmayan kullanici giris yapamiyor, grup yoneticisi baska sirkette uyelik veremiyordu. Cozum: `AuditSaveExtensions.SaveChangesAcrossCompaniesAsync` (ayni transaction'da yazma baglamini hedef sirkete cevirir; is kaydi ve denetim birlikte kalir); `UserEndpoints` ve `AuthEndpoints` (LogAuthAsync, MFA) kullanir. `EndpointAuthorizationTests` ile `MultiCompanyTests` ortam degiskeni/kurulum belirteci paylastigi icin `WebHost` koleksiyonunda seri kosar. Ayrinti: devir notu bolum 2.6. |
 | 17.10.2026 | 3.2 | Claude Code | **M1.5 uygulamasina baslandi** (dal `claude/uusport-durumu-102mgc`): migration `20261017050655_M15MultiCompany` (tenant kolonlari, `identity.company_membership`, `is_group_admin`, `related_tenant_id`, `supplier_item_code`, RLS v2 okuma-kume/yazma-tekil, veri tasima: ilk kiraci UUS, roller uyelige, kod on ekleri); `CompanyContextMiddleware` + `CompanyAccess` + yetki anahtarlari (`Permissions`), politikalar Staff/Admin/GroupAdmin/perm:*; `/api/companies`, kullanici uclari uyelik modeliyle yeniden; `/api/auth/me` sirket listesi; kod on eki (cari, urun, Excel). Linux bulut oturumunda .NET 10 + PostgreSQL 16 ile **72/72 test gecti**; gizli bilgi icin ortam degiskeni gecisi (yalniz Windows disi test). Web arayuzu, MultiCompanyTests, grup ici islemler ve belgeler HENUZ YOK. Devir notu: `docs/project-memory/M15_COKLU_SIRKET_DEVIR_NOTU_2026-10-17.md` (bir sonraki oturum once bunu okur). |
 | 17.10.2026 | 3.1 | Claude Code | `[KULLANICI KARARI]` Coklu sirket Secenek A onaylandi, KU-8..KU-15 yanitlandi; **ADR-012** yazildi (`docs/decisions/ADR-012_COKLU_SIRKET_VE_KIRACI_MODELI.md`): sirketler UUSPORT/FITNESS/TIYATRO; sirket = kiraci; sirket basina rol + Ortak rolu parametrik gorunurluk; birlesik okuma / tekil yazma RLS; grup ici islemler onay kuyrugu ve `intercompany_link`; ayni veli ayri cari, fazla tahsilat `approved_adjustment` ile aktarim; musavir aktarim profili sirket basina; kodlarda `UUS-/FIT-/TIY-` on eki ve `supplier_item_code` esleme tablosu. Yol haritasina M1.5 eklendi. Kod degisikligi yok. |

@@ -429,6 +429,57 @@ public sealed class MultiCompanyTests(MultiCompanyFixture w) : IClassFixture<Mul
         Assert.Equal(dailyEach, dailyAll);
     }
 
+    [Fact]
+    public async Task BirlesikListeler_SatirlaraSirketKoduEkler_SessizBirlestirmeYok()
+    {
+        var expected = new Dictionary<string, string> { ["Cari UUS"] = "UUS", ["Cari FIT"] = "FIT", ["Cari TIY"] = "TIY" };
+
+        // Cari listesi ve hesap hareketleri: her satir kendi sirketinin kodunu tasir.
+        var parties = await MultiCompanyFixture.Json(MultiCompanyFixture.Ok(await MultiCompanyFixture.SendAll(w.Patron, "GET", "/api/parties")));
+        foreach (var p in parties.EnumerateArray())
+            Assert.Equal(expected[p.GetProperty("name").GetString()!], p.GetProperty("company").GetString());
+
+        var ledger = await MultiCompanyFixture.Json(MultiCompanyFixture.Ok(await MultiCompanyFixture.SendAll(w.Patron, "GET", "/api/ledger")));
+        var ledgerRows = ledger.EnumerateArray().ToList();
+        Assert.Equal(3, ledgerRows.Count);
+        foreach (var r in ledgerRows)
+            Assert.Equal(expected[r.GetProperty("partyName").GetString()!], r.GetProperty("company").GetString());
+
+        // Tahsilatlar ve kasa hesaplari da sirket kodu tasir; tek sirket secilince yalniz o sirketin kodu gelir.
+        var accounts = await MultiCompanyFixture.Json(MultiCompanyFixture.Ok(await MultiCompanyFixture.SendAll(w.Patron, "GET", "/api/cash-accounts")));
+        Assert.Equal(["FIT", "TIY", "UUS"], accounts.EnumerateArray().Select(a => a.GetProperty("company").GetString()!).Distinct().Order().ToArray());
+        var onlyB = await MultiCompanyFixture.Json(MultiCompanyFixture.Ok(await MultiCompanyFixture.Send(w.Patron, "GET", "/api/ledger", null, w.B)));
+        Assert.All(onlyB.EnumerateArray(), r => Assert.Equal("FIT", r.GetProperty("company").GetString()));
+
+        // Gunluk tahsilat: ayni gun/yontem/hesap adi ("Merkez Kasa") uc sirkette ayri satir kalir.
+        var daily = await MultiCompanyFixture.Json(MultiCompanyFixture.Ok(await MultiCompanyFixture.SendAll(w.Patron, "GET", "/api/reports/daily-collections")));
+        Assert.Equal(["FIT", "TIY", "UUS"], daily.GetProperty("rows").EnumerateArray().Select(r => r.GetProperty("company").GetString()!).Order().ToArray());
+        var dailyByCompany = daily.GetProperty("totalsByCompany").EnumerateArray()
+            .ToDictionary(t => t.GetProperty("company").GetString()!, t => MultiCompanyFixture.Money(t.GetProperty("total")));
+        Assert.Equal(w.Receipts[w.A], dailyByCompany["UUS"]);
+        Assert.Equal(w.Receipts[w.B], dailyByCompany["FIT"]);
+        Assert.Equal(w.Receipts[w.C], dailyByCompany["TIY"]);
+        Assert.Equal(dailyByCompany.Values.Sum(), MultiCompanyFixture.Money(daily.GetProperty("total")));
+
+        // Acik bakiye ve pano: sirket kirilimi var, genel toplam kirilimlarin toplamidir.
+        var open = await MultiCompanyFixture.Json(MultiCompanyFixture.Ok(await MultiCompanyFixture.SendAll(w.Patron, "GET", "/api/reports/open-balances")));
+        Assert.All(open.GetProperty("rows").EnumerateArray(), r => Assert.Equal(expected[r.GetProperty("name").GetString()!], r.GetProperty("company").GetString()));
+        var payableByCompany = open.GetProperty("totalsByCompany").EnumerateArray()
+            .ToDictionary(t => t.GetProperty("company").GetString()!, t => MultiCompanyFixture.Money(t.GetProperty("totalPayable")));
+        Assert.Equal(w.Receipts[w.B], payableByCompany["FIT"]);
+        Assert.Equal(MultiCompanyFixture.Money(open.GetProperty("totalPayable")), payableByCompany.Values.Sum());
+
+        var dash = await MultiCompanyFixture.Json(MultiCompanyFixture.Ok(await MultiCompanyFixture.SendAll(w.Patron, "GET", "/api/dashboard")));
+        var dashCompanies = dash.GetProperty("totalsByCompany").EnumerateArray().ToList();
+        Assert.Equal(["FIT", "TIY", "UUS"], dashCompanies.Select(t => t.GetProperty("company").GetString()!).Order().ToArray());
+        Assert.Equal(MultiCompanyFixture.Money(dash.GetProperty("receiptsThisMonth")),
+            dashCompanies.Sum(t => MultiCompanyFixture.Money(t.GetProperty("receiptsThisMonth"))));
+
+        // Yetkisiz sirket kodu sizmaz: muhasebe C panoda yalniz kendi sirketini gorur.
+        var dashC = await MultiCompanyFixture.Json(MultiCompanyFixture.Ok(await MultiCompanyFixture.SendAll(w.MuhasebeC, "GET", "/api/dashboard")));
+        Assert.Equal(["TIY"], dashC.GetProperty("totalsByCompany").EnumerateArray().Select(t => t.GetProperty("company").GetString()!).ToArray());
+    }
+
     private async Task SetOrtakKeysAsync(string[] granted)
     {
         var resp = await MultiCompanyFixture.Send(w.Patron, "PUT", $"/api/users/{w.UserOrtakB}", new

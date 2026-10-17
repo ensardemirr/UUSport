@@ -124,6 +124,19 @@ Dal: `claude/uusport-durumu-102mgc` (GitHub `ensardemirr/UUSport`). `master`'a b
   kiracilari temizlenmiyor; kod cakismasi olasiligi her kosuda artar. Tekrarlanirsa kod uzunlugunu artir
   veya test kiracilarini temizle.
 
+### 2.7 Liste satirlarinda sirket kodu (Windows, ayni gun) - `[DOGRU]`
+- `AccountingQueries.CompanyCodesAsync` (core.tenant RLS'siz, sorgu basina onbellek). `LedgerListRow`, `LineRow`,
+  `PaymentRow`, `DocumentRow`, `PendingOpeningRow` sonuna `Company` (kisa kod) alani eklendi; JSON'da `company`.
+  Tek sirkette de dolu gelir, istemci yalniz birden cok sirket seciliyse sutunu gosterir.
+- `company` alani: `/api/parties`, `/api/items`, `/api/cash-accounts`, `/api/reports/open-balances`, `/stock`.
+- Sessiz birlestirme yok: `/api/reports/daily-collections` gruplama anahtarina sirket eklendi (ayni gun/yontem/hesap
+  adi farkli sirketlerde ayri satir). `totalsByCompany` eklendi: daily-collections, open-balances, uninvoiced,
+  unallocated, dashboard. Mevcut genel toplam alanlari (`total`, `totalReceivable`, `totalPayable` ...) ayni kaldi
+  ve kirilimlarin toplamina esittir. Pano yalniz okuma kapsamindaki sirketleri listeler (yetkisiz kod sizmaz).
+- Test: `MultiCompanyTests.BirlesikListeler_SatirlaraSirketKoduEkler_SessizBirlestirmeYok`. Toplam 82/82.
+- Kalan (web): `rows[].company` ve `totalsByCompany` alanlarini arayuz gosterecek (madde 4). `grandTotal` ayri alan
+  eklenmedi; mevcut toplam alanlari bu rolu ustleniyor.
+
 ## 3. Ne kaldi (sirayla) - yapilmasi gerekenler
 
 1. ~~**MultiCompanyTests**~~ **YAPILDI (bolum 2.6).** Kapsam asagida; "birlesik rapor toplami" `open-balances` ve
@@ -138,10 +151,7 @@ Dal: `claude/uusport-durumu-102mgc` (GitHub `ensardemirr/UUSport`). `master`'a b
    - birlesik rapor toplamlari = sirket toplamlarinin toplami.
 2. **SchemaGuardTests**: politika metninin `app.tenant_ids` icerdigini ve `WITH CHECK`'in tekil
    oldugunu `pg_policies.qual / with_check` ile dogrula; `supplier_item_code` RLS listesinde.
-3. **Birlesik modda liste satirlarina sirket kodu.** `AccountingQueries` satir kayitlarina
-   (`LedgerListRow`, `PaymentRow`, `DocumentRow`, `LineRow`) ve cari listesine `CompanyCode` ekle
-   (`db.Tenants` kodlari bir kez sozluge al; RLS yok). Dashboard ve raporlar `rows[].company`,
-   `totalsByCompany`, `grandTotal` (sessiz birlestirme yok).
+3. ~~**Birlesik modda liste satirlarina sirket kodu.**~~ **YAPILDI (bolum 2.7).**
 4. **Web (hic baslanmadi).** `api.ts`: `X-UUSport-Companies` basligi (modul degiskeni), `Me` tipi
    genisler. `auth.tsx`: `companies`, `selected` (localStorage), `isAdmin = me.isAdmin`,
    `canWrite = me.canWrite`, `isGroupAdmin`. `Layout.tsx`: ust cubukta rozetler (kisa kod + renk),

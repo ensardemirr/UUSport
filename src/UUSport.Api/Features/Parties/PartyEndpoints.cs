@@ -65,8 +65,10 @@ public static class PartyEndpoints
             var athletes = await db.Athletes.Where(a => ids.Contains(a.PartyId) && a.IsActive)
                 .Select(a => new { a.PartyId, Name = a.FirstName + " " + a.LastName }).ToListAsync(ct);
             var athletesByParty = athletes.GroupBy(a => a.PartyId).ToDictionary(x => x.Key, x => x.Select(a => a.Name).ToList());
+            var codes = await db.Tenants.ToDictionaryAsync(t => t.Id, t => t.Code, ct);
             return Results.Ok(parties.Select(p => new
             {
+                company = codes.GetValueOrDefault(p.TenantId, ""),
                 p.Id, p.Code, p.Name, kind = AppDbContext.ToSnake(p.Kind.ToString()), p.Phone, p.Email, p.IsActive,
                 balance = balances.GetValueOrDefault(p.Id),
                 athletes = athletesByParty.GetValueOrDefault(p.Id, []),

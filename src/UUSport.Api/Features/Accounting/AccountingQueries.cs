@@ -15,28 +15,37 @@ public sealed record LedgerRow(
 
 public sealed record LedgerListRow(
     Guid Id, Guid PartyId, string PartyName, DateOnly OccurredOn, string SourceType, Guid SourceId,
-    string Description, decimal Debit, decimal Credit, bool IsOfficial);
+    string Description, decimal Debit, decimal Credit, bool IsOfficial, string Company);
 
 public sealed record LineRow(
     Guid Id, Guid PartyId, string PartyName, DateOnly OccurredOn, string Direction, Guid ItemId, string ItemName, string ItemKind,
     decimal Quantity, decimal UnitPrice, decimal DiscountPercent, decimal VatRate, decimal NetAmount, decimal VatAmount,
     decimal GrossAmount, decimal DocumentedQuantity, decimal PendingQuantity, decimal AllocatedAmount, decimal OpenAmount,
-    string Status, Guid? ReversesLineId, string? Description, IReadOnlyList<string> Documents);
+    string Status, Guid? ReversesLineId, string? Description, IReadOnlyList<string> Documents, string Company);
 
 public sealed record PaymentRow(
     Guid Id, Guid PartyId, string PartyName, DateOnly OccurredOn, string Direction, string Method, string AccountName,
     decimal Amount, decimal AllocatedAmount, decimal UnallocatedAmount, string? Reference, string? Description,
-    bool IsReversal, bool IsReversed);
+    bool IsReversal, bool IsReversed, string Company);
 
 public sealed record DocumentRow(
     Guid Id, Guid PartyId, string PartyName, string Direction, string Type, string DocumentNo, DateOnly DocumentDate,
-    decimal NetTotal, decimal VatTotal, decimal GrossTotal, string Status, string? CancelReason, int LinkCount);
+    decimal NetTotal, decimal VatTotal, decimal GrossTotal, string Status, string? CancelReason, int LinkCount, string Company);
 
 /// <summary>
 /// ADR-004 bolum 2.4: uc gorunum ayni veriden hesaplanir, ayri defter tutulmaz.
 /// </summary>
 public sealed class AccountingQueries(AppDbContext db)
 {
+    private Dictionary<Guid, string>? _companyCodes;
+
+    /// <summary>
+    /// Sirket kimligi -> kisa kod (core.tenant RLS'siz). Birlesik gorunumde her satir hangi sirkete ait oldugunu
+    /// tasir (ADR-012 2.3); tek sirkette de dolu gelir, istemci yalniz birden cok sirket seciliyse gosterir.
+    /// </summary>
+    public async Task<Dictionary<Guid, string>> CompanyCodesAsync(CancellationToken ct) =>
+        _companyCodes ??= await db.Tenants.ToDictionaryAsync(t => t.Id, t => t.Code, ct);
+
     public async Task<PartySummary> SummaryAsync(Guid partyId, CancellationToken ct)
     {
         var balance = await db.LedgerEntries.Where(e => e.PartyId == partyId)
@@ -101,9 +110,10 @@ public sealed class AccountingQueries(AppDbContext db)
                 officialBySourceId[kv.Key] = kv.Value;
         }
 
+        var codes = await CompanyCodesAsync(ct);
         return entries.Select(e => new LedgerListRow(e.Id, e.PartyId, parties.GetValueOrDefault(e.PartyId, ""),
             e.OccurredOn, e.SourceType, e.SourceId, e.Description, e.Debit, e.Credit,
-            officialBySourceId.GetValueOrDefault(e.SourceId, true))).ToList();
+            officialBySourceId.GetValueOrDefault(e.SourceId, true), codes.GetValueOrDefault(e.TenantId, ""))).ToList();
     }
 
     /// <summary>
@@ -178,6 +188,7 @@ public sealed class AccountingQueries(AppDbContext db)
         var originalIds = lines.Where(l => l.ReversesLineId != null).Select(l => l.ReversesLineId!.Value).Distinct().ToList();
         var originals = await db.TradeLines.Where(l => originalIds.Contains(l.Id)).ToDictionaryAsync(l => l.Id, ct);
 
+        var codes = await CompanyCodesAsync(ct);
         var rows = new List<LineRow>(lines.Count);
         foreach (var l in lines)
         {
@@ -211,7 +222,8 @@ public sealed class AccountingQueries(AppDbContext db)
                 l.Quantity, l.UnitPrice, l.DiscountPercent, l.VatRate, l.NetAmount, l.VatAmount, l.GrossAmount,
                 l.DocumentedQuantity, pendingQty, alloc,
                 l.ReversesLineId is null ? Math.Max(0, l.GrossAmount + reversedGrossByOriginal.GetValueOrDefault(l.Id) - alloc) : 0,
-                status, l.ReversesLineId, l.Description, docsByLine.GetValueOrDefault(l.Id, [])));
+                status, l.ReversesLineId, l.Description, docsByLine.GetValueOrDefault(l.Id, []),
+                codes.GetValueOrDefault(l.TenantId, "")));
         }
         return rows;
     }
@@ -237,6 +249,7 @@ public sealed class AccountingQueries(AppDbContext db)
         var partyIds = payments.Select(p => p.PartyId).Distinct().ToList();
         var parties = await db.Parties.Where(p => partyIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => p.Name, ct);
 
+        var codes = await CompanyCodesAsync(ct);
         return payments.Select(p =>
         {
             var alloc = allocated.GetValueOrDefault(p.Id);
@@ -245,7 +258,8 @@ public sealed class AccountingQueries(AppDbContext db)
             return new PaymentRow(p.Id, p.PartyId, parties.GetValueOrDefault(p.PartyId, ""), p.OccurredOn,
                 AppDbContext.ToSnake(p.Direction.ToString()), AccountingService.MethodName(p.Method),
                 accounts.GetValueOrDefault(p.CashAccountId, ""), p.Amount, alloc,
-                isReversal || isReversed ? 0 : p.Amount - alloc, p.Reference, p.Description, isReversal, isReversed);
+                isReversal || isReversed ? 0 : p.Amount - alloc, p.Reference, p.Description, isReversal, isReversed,
+                codes.GetValueOrDefault(p.TenantId, ""));
         }).ToList();
     }
 
@@ -257,10 +271,11 @@ public sealed class AccountingQueries(AppDbContext db)
             .Select(d => new { d, LinkCount = d.Links.Count(l => l.IsActive) }).ToListAsync(ct);
         var partyIds = list.Select(x => x.d.PartyId).Distinct().ToList();
         var parties = await db.Parties.Where(p => partyIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => p.Name, ct);
+        var codes = await CompanyCodesAsync(ct);
         return list.Select(x => new DocumentRow(x.d.Id, x.d.PartyId, parties.GetValueOrDefault(x.d.PartyId, ""),
             AppDbContext.ToSnake(x.d.Direction.ToString()), AppDbContext.ToSnake(x.d.Type.ToString()), x.d.DocumentNo,
             x.d.DocumentDate, x.d.NetTotal, x.d.VatTotal, x.d.GrossTotal, AppDbContext.ToSnake(x.d.Status.ToString()),
-            x.d.CancelReason, x.LinkCount)).ToList();
+            x.d.CancelReason, x.LinkCount, codes.GetValueOrDefault(x.d.TenantId, ""))).ToList();
     }
 
     /// <summary>Muhasebe Bekleyen: belgelenmemis satirlar + dagitilmamis tahsilatlar + onay bekleyen acilis bakiyeleri.</summary>
@@ -268,12 +283,15 @@ public sealed class AccountingQueries(AppDbContext db)
     {
         var lines = (await LinesAsync(null, null, ct)).Where(l => l.PendingQuantity > 0).ToList();
         var payments = (await PaymentsAsync(null, ct)).Where(p => p.UnallocatedAmount > 0).ToList();
-        var openings = await (from o in db.OpeningBalances
-                              join p in db.Parties on o.PartyId equals p.Id
-                              where o.Status == OpeningBalanceStatus.Pending
-                              orderby p.Name
-                              select new PendingOpeningRow(o.Id, o.PartyId, p.Name, o.Amount, o.Note, o.ImportBatchId, o.CreatedAt))
+        var codes = await CompanyCodesAsync(ct);
+        var pendingOpenings = await (from o in db.OpeningBalances
+                                     join p in db.Parties on o.PartyId equals p.Id
+                                     where o.Status == OpeningBalanceStatus.Pending
+                                     orderby p.Name
+                                     select new { o.Id, o.PartyId, p.Name, o.Amount, o.Note, o.ImportBatchId, o.CreatedAt, o.TenantId })
             .ToListAsync(ct);
+        var openings = pendingOpenings.Select(o => new PendingOpeningRow(o.Id, o.PartyId, o.Name, o.Amount, o.Note,
+            o.ImportBatchId, o.CreatedAt, codes.GetValueOrDefault(o.TenantId, ""))).ToList();
         return new PendingWorkResult(
             lines.Where(l => l.Direction == "sale").ToList(),
             lines.Where(l => l.Direction == "purchase").ToList(),
@@ -283,7 +301,7 @@ public sealed class AccountingQueries(AppDbContext db)
 }
 
 public sealed record PendingOpeningRow(Guid Id, Guid PartyId, string PartyName, decimal Amount, string? Note,
-    Guid? ImportBatchId, DateTimeOffset CreatedAt);
+    Guid? ImportBatchId, DateTimeOffset CreatedAt, string Company);
 
 public sealed record PendingWorkResult(
     List<LineRow> SalesAwaitingInvoice, List<LineRow> PurchasesAwaitingInvoice,
