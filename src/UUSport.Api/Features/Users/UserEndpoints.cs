@@ -101,7 +101,7 @@ public static class UserEndpoints
             }
             audit.Add("user.create", "user", user.Id, new { user.UserName, input.MaxDiscountPercent, user.IsGroupAdmin },
                 tenantOverride: user.TenantId);
-            await db.SaveChangesAsync(ct);
+            await db.SaveChangesAcrossCompaniesAsync(tenant, ct);
             return Results.Ok(new { user.Id });
         });
 
@@ -170,17 +170,22 @@ public static class UserEndpoints
                 }
             }
 
-            await users.UpdateAsync(user);
-            // Personel ayrilisinda veya yetki degisikliginde acik oturumlar en gec 1 dakikada yenilenir (standart 2.2).
-            if ((wasActive && !input.IsActive) || membershipsChanged) await users.UpdateSecurityStampAsync(user);
             audit.Add("user.update", "user", user.Id, new { input.MaxDiscountPercent, input.IsActive, user.IsGroupAdmin },
                 tenantOverride: user.TenantId);
-            await db.SaveChangesAsync(ct);
+            // UserManager bekleyen tum degisiklikleri kendi kaydeder; denetim olaylari once eklenir, farkli
+            // sirkete ait olanlar ayni islemde o sirketin baglamiyla yazilir.
+            await db.SaveChangesAcrossCompaniesAsync(tenant, ct, async () =>
+            {
+                await users.UpdateAsync(user);
+                // Personel ayrilisinda veya yetki degisikliginde acik oturumlar en gec 1 dakikada yenilenir (standart 2.2).
+                if ((wasActive && !input.IsActive) || membershipsChanged) await users.UpdateSecurityStampAsync(user);
+                await db.SaveChangesAsync(ct);
+            });
             return Results.Ok(new { ok = true });
         });
 
         g.MapPost("/{id:guid}/password", async (Guid id, PasswordInput input, UserManager<AppUser> users, CompanyAccess access,
-            AuditWriter audit, AppDbContext db, CancellationToken ct) =>
+            TenantContext tenant, AuditWriter audit, AppDbContext db, CancellationToken ct) =>
         {
             var user = await FindVisibleAsync(users, db, access, id, ct);
             var token = await users.GeneratePasswordResetTokenAsync(user);
@@ -188,19 +193,19 @@ public static class UserEndpoints
             if (!result.Succeeded) throw new DomainException("password", AuthEndpoints.Describe(result));
             await users.SetLockoutEndDateAsync(user, null);
             audit.Add("user.password_reset", "user", user.Id, tenantOverride: user.TenantId);
-            await db.SaveChangesAsync(ct);
+            await db.SaveChangesAcrossCompaniesAsync(tenant, ct);
             return Results.Ok(new { ok = true });
         });
 
         g.MapPost("/{id:guid}/reset-mfa", async (Guid id, UserManager<AppUser> users, CompanyAccess access,
-            AuditWriter audit, AppDbContext db, CancellationToken ct) =>
+            TenantContext tenant, AuditWriter audit, AppDbContext db, CancellationToken ct) =>
         {
             var user = await FindVisibleAsync(users, db, access, id, ct);
             await users.SetTwoFactorEnabledAsync(user, false);
             await users.ResetAuthenticatorKeyAsync(user);
             await users.UpdateSecurityStampAsync(user);
             audit.Add("user.mfa_reset", "user", user.Id, tenantOverride: user.TenantId);
-            await db.SaveChangesAsync(ct);
+            await db.SaveChangesAcrossCompaniesAsync(tenant, ct);
             return Results.Ok(new { ok = true });
         });
     }

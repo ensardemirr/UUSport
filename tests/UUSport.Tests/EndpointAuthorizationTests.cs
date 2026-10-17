@@ -25,6 +25,7 @@ namespace UUSport.Tests;
 /// uclara ulasabilmeli, yonetici-ozel uclarda 403 almali. Bu, tam olarak 27.09 P0 hatasinin
 /// (bir korumanin sifir/yeni ortamda sessizce acik kalmasi) HTTP katmanindaki karsiligini yakalar.
 /// </summary>
+[Collection("WebHost")]
 public sealed class EndpointAuthorizationTests : IAsyncLifetime
 {
     private static readonly DatabaseOptions Options = new();

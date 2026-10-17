@@ -249,19 +249,19 @@ public static class AuthEndpoints
             var codes = await users.GenerateNewTwoFactorRecoveryCodesAsync(user, 10);
             await signIn.RefreshSignInAsync(user);
             audit.Add("user.mfa_enabled", "user", user.Id, tenantOverride: user.TenantId);
-            await db.SaveChangesAsync();
+            await db.SaveChangesAcrossCompaniesAsync(tenant, CancellationToken.None);
             return Results.Ok(new { ok = true, recoveryCodes = codes });
         }).RequireRateLimiting("auth");
 
         // Kurtarma kodlari tukendiginde veya sifirlanmasi istendiginde yeniden uretilir; eskileri gecersiz olur.
         mfa.MapPost("/recovery/regenerate", async (HttpContext http, UserManager<AppUser> users,
-            AuditWriter audit, AppDbContext db) =>
+            AuditWriter audit, AppDbContext db, TenantContext tenant) =>
         {
             var user = await users.GetUserAsync(http.User) ?? throw new NotFoundException("Kullanıcı");
             if (!user.TwoFactorEnabled) throw new DomainException("mfa_disabled", "Önce iki adımlı doğrulamayı açmalısınız.");
             var codes = await users.GenerateNewTwoFactorRecoveryCodesAsync(user, 10);
             audit.Add("user.recovery_codes_regenerated", "user", user.Id, tenantOverride: user.TenantId);
-            await db.SaveChangesAsync();
+            await db.SaveChangesAcrossCompaniesAsync(tenant, CancellationToken.None);
             return Results.Ok(new { recoveryCodes = codes });
         }).RequireRateLimiting("auth");
     }
@@ -288,7 +288,8 @@ public static class AuthEndpoints
             IpAddress = http.Connection.RemoteIpAddress?.ToString(),
             Summary = extra is null ? null : JsonSerializer.Serialize(extra),
         });
-        await db.SaveChangesAsync();
+        // Kullanicinin ev sirketi, istegin yazma baglamindan (ilk sirket veya secili sirket) farkli olabilir.
+        await db.SaveChangesAcrossCompaniesAsync(tenant, CancellationToken.None);
     }
 
     private static string FormatKey(string key) =>

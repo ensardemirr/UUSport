@@ -101,9 +101,35 @@ Dal: `claude/uusport-durumu-102mgc` (GitHub `ensardemirr/UUSport`). `master`'a b
   `/api/users/permission-keys`, `/api/companies/all`, `POST/PUT /api/companies` eklendi.
 - Sonuc: **72/72 gecti** (yeni migration uygulanmis `uusport_test` + sifir veritabani zinciri).
 
+### 2.6 MultiCompanyTests ve bulunan hatalar (Windows, ayni gun) - `[DOGRU]`
+- `tests/UUSport.Tests/MultiCompanyTests.cs`: 9 test, toplam **81/81**, `tools/build-uusport.ps1` yesil.
+  `MultiCompanyFixture` uc sirket (UUS/FIT/TIY) ve bes kullanici kurar (patron, muhasebe-ab, muhasebe-c,
+  ortak-b, yonetici-b); veri HTTP uclarindan, RLS kaniti uygulama rolu ile ham SQL'den yapilir.
+- **Hata 1 (duzeltildi):** denetim olayi `audit.audit_event` RLS'li; `AuditWriter.Add(..., tenantOverride)` baska
+  sirketin kimligiyle yazinca `WITH CHECK` (tekil `app.tenant_id`) reddediyor ve 500 donuyordu. Etkisi:
+  ev sirketi ilk sirket olmayan HICBIR kullanici giris yapamiyordu; grup yoneticisi baska sirkette uyelik
+  veremiyordu. Eski 72 test tek sirketli oldugu icin yakalamamisti.
+- **Cozum:** `AuditSaveExtensions.SaveChangesAcrossCompaniesAsync(db, tenant, ct, saveMain?)`
+  (`Features/Audit/AuditWriter.cs`). Yazma sirketinden farkli sirkete ait denetim olaylarini ayirir, ayni
+  transaction icinde `set_config` ile yazma baglamini hedef sirkete cevirip yazar; is kaydi ve denetim yine
+  birlikte kaydedilir/geri alinir. Kullananlar: `UserEndpoints` (olustur, guncelle, parola, MFA sifirla),
+  `AuthEndpoints` (`LogAuthAsync`, MFA etkinlestirme, kurtarma kodu). **Yeni kural:** `tenantOverride` ile
+  baska sirkete denetim yazan her yer bu uzantiyla kaydeder; `UserManager` bekleyen her seyi kendi
+  kaydettigi icin denetim olaylari ONCE eklenir, kayit `saveMain` ile yapilir.
+- `EndpointAuthorizationTests` ve `MultiCompanyTests` ortam degiskeni (`Database__Database`) ve
+  `setup-token.txt` dosyasini paylastigi icin `[Collection("WebHost")]` ile seri kosar. Kurulum belirteci
+  dosyasi `GET /api/setup/status` cagrisinda uretilir.
+- `[ACIK]` Bir tam kosuda `LoanServiceTests.TaksitToplami_AnaParayaEsitOlmali` bir kez kirildi, sonraki 6 kosuda
+  gecti; hata metni yakalanmadi. Olasi neden (DOGRULANMADI): `TestWorld` kiraci kodu `T` + 5 hex ve `uusport_test`
+  kiracilari temizlenmiyor; kod cakismasi olasiligi her kosuda artar. Tekrarlanirsa kod uzunlugunu artir
+  veya test kiracilarini temizle.
+
 ## 3. Ne kaldi (sirayla) - yapilmasi gerekenler
 
-1. **MultiCompanyTests (yeni dosya, oncelik 1).** Uc sirket, dort kullanici (patron, muhasebe A+B,
+1. ~~**MultiCompanyTests**~~ **YAPILDI (bolum 2.6).** Kapsam asagida; "birlesik rapor toplami" `open-balances` ve
+   `daily-collections` ile, "Ortak ledger.read ver/al" ve "write verilemez" dahil. Kalan: `GET/PUT` kullanici
+   uclari icin parola/MFA sifirlama capraz sirket testi, `X-UUSport-Companies: all` ile ortak kullanicisi.
+   Orijinal kapsam: Uc sirket, dort kullanici (patron, muhasebe A+B,
    muhasebe C, ortak B) - `WebApplicationFactory` ile (EndpointAuthorizationTests kalibi):
    - muhasebe C -> A carisine GET/PUT 404; ortak B her yazma ucunda 403 `read_only_role`;
    - baslik `A,B` ile POST -> 400 `company`; dogrudan SQL ile `WITH CHECK` reddi (RLS kaniti);
