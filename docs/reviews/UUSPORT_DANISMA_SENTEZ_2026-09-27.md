@@ -105,7 +105,7 @@ Kural: aynı anda tek aktif taş (`C:BIZ-01`). Her iş: test + gerekiyorsa ekran
 ### M4 — Nakit akışı v1 (ADR-010, ADR-011, ADR-015)
 `C:CF-01..05`, `X:CF-01..08`, `C:TAX-01/02/04`, `X:TAX-01/02/04`, `C:CF-02` tahsilat planı, `C:UX-09` ekranlar. İlk sürüm: haftalık/aylık, KDV otomatik, muhtasar/SGK bordro özetinden, geçici/kurumlar MM tahmini kalemi, üç hazır senaryo.
 
-### M5 — Muhasebeci aktarımı (ADR-006, ADR-012)
+### M5 — Muhasebeci aktarımı (ADR-006)
 `C:INT-01..03`, `X:INT-01..04`, `C:ACC-16`. MM'nin gerçek şablonu ve test firması gelmeden başlamaz.
 
 ### M6 — Senaryo genişletme, vergi v2, yaşlandırma, stok maliyeti (ADR-014)
@@ -124,7 +124,7 @@ Kural: aynı anda tek aktif taş (`C:BIZ-01`). Her iş: test + gerekiyorsa ekran
 - ADR-009 Resmi kapsam, belge kapsamı ve aktarım durumu (C:ADR-009 + X:ADR-006)
 - ADR-010 Nakit akışı plan ve senaryo modeli (C:ADR-010 + X:ADR-010)
 - ADR-011 Vergi ve mevzuat parametreleri (C:ADR-011 + X:ADR-011)
-- ADR-012 Kiracı çözümleme ve SaaS kapıları (C:ADR-012 + X:ADR-013)
+- ADR-018 Kiracı çözümleme ve SaaS kapıları (C:ADR-012 + X:ADR-013). **Numara değişti (17.10.2026):** ADR-012 çok şirket kararına verildi (`docs/decisions/ADR-012_COKLU_SIRKET_VE_KIRACI_MODELI.md`), bu aday ADR-018 oldu; çok şirketin kiracı kısmı ADR-012'de karara bağlandı, burada yalnız SaaS kapıları kalır.
 - ADR-013 Dönem kilidi ve finansal komut bütünlüğü (C:ADR-013 + X:ADR-009)
 - ADR-014 Stok maliyeti
 - ADR-015 Tahsilat planı ve aidat

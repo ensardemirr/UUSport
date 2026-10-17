@@ -1,6 +1,6 @@
 # UU Sport Ana Hafiza
 
-**Surum:** 3.4  
+**Surum:** 3.5  
 **Olusturma tarihi:** 23 Eylul 2026  
 **Son guncelleme:** 17 Ekim 2026  
 **Ilk yazar:** Codex  
@@ -16,7 +16,8 @@ anahtari veya gercek ogrenci/veli verisi icermez.
 - `[DOGRU]` VS Code bu klasorde acik ve calisma alani guvenilir.
 - `[DOGRU]` Klasor ayri bir Obsidian kasasi olarak tanimli.
 - `[DOGRU]` Git deposu var; ana dal `master`. Uzak depo GitHub'da tanimli
-  (`ensardemirr/UUSport`); son commit `6f799d3` (04.10.2026, M0 + M1).
+  (`ensardemirr/UUSport`); `master` son commit `6f799d3` (04.10.2026, M0 + M1); calisma dali
+  `claude/uusport-durumu-102mgc` (M1.5, 17.10.2026) `master`'a birlesmedi.
 - `[DOGRU]` Gelistirme makinesi `BAKON-DEV01` (kullanici `Ensaradmin`): PostgreSQL 18.6
   kullanici modu kumesi yerel geri dongu adreslerinde (`127.0.0.1:5432` ve `[::1]:5432`)
   calisiyor. Canli hedef bilgisayar henuz kurulmadi ve bu satir onu kapsamaz.
@@ -41,7 +42,23 @@ anahtari veya gercek ogrenci/veli verisi icermez.
   fazla tahsilat `approved_adjustment` ile diger sirkete aktarilir. Kodlarda sirket on eki
   + tedarikci urun kodu esleme tablosu. Musavir/aktarim profili sirket basina. M2'den once
   **M1.5** olarak uygulanacak. ADR: `docs/decisions/ADR-012_COKLU_SIRKET_VE_KIRACI_MODELI.md`;
-  calisma: `docs/designs/COKLU_SIRKET_YAPI_CALISMASI_2026-10-17.md`. Kod henuz yazilmadi.
+  calisma: `docs/designs/COKLU_SIRKET_YAPI_CALISMASI_2026-10-17.md`. Uygulama dalda surmekte (satir 33 ve devir notu).
+- `[KULLANICI KARARI]` 17 Ekim 2026, danisma sentezi KU yanitlari:
+  KU-1 onay: siralama once dogruluk ve guvenlik, sonra hazine, sonra nakit akisi.
+  KU-2: "Gayri resmi" ifadesi kalkar; resmi ekstre dugme/PDF adi **"Muhasebe Cari"**.
+  KU-3: gelistirme veritabanindaki deneme kayitlarinda gercek kisi adi/telefonu **yok**.
+  KU-4: canli gecis hedefi **Kasim 2026**; iki hafta paralel calisma **yapilmayacak**,
+  dogrudan gecilecek (sentez S-36 paralel calisma onerisinden vazgecildi; risk asagida).
+  KU-6: uzak yedek ve isletim icin aylik butce **1000 TL**; ikinci yonetici hesabi,
+  16 GB RAM ve yurt ici sifreli yedek alani yaniti ayrica gelecek.
+  KU-7: veliye verilecek ekstrenin kapsami (tum hareketler / yalniz belgelenmis) **ekstreyi
+  hazirlayan personelin tercihine birakildi**: ekstre ekraninda kapsam secimi olacak.
+- `[ACIK]` KU-5: sirket karti, POS, portfoyde cek ve kredi **var**; hangilerinin ilk
+  canlida zorunlu oldugunu kullanici kisa surede bildirecek (M3 onceliklendirmesini belirler).
+- `[RISK]` Kasim 2026 hedefi ve paralel calismasiz gecis: M2 (resmi kapsam, ekstre,
+  donem kilidi), yedek (S-10) ve gercek geri yukleme provasi bu tarihten once bitmeli;
+  kuru prova ve acilis bakiyesi mutabakati (S-36) paralel calismanin yerini tutan tek
+  guvence olur. Takvim gercekci degilse karar yeniden gozden gecirilmelidir.
 - `[KARAR]` Gunluk guncel ogrenci aktariminin tek kaynagi Excel'deki `Sayfa1 (2)`
   sayfasidir. Benzer isimli sayfalar otomatik birlestirilmeyecek.
 - `[KARAR]` Gercek cocuk, sporcu ve veli verisi gelistirme/test ortamlarina veya
@@ -376,7 +393,7 @@ kume kurar; gecerli yol kullanici modu kumesidir (denetim Y1). Bu iki betik yeni
 - Ilk acilista **ilk kurulum** ekrani cikar: kurum adi ve ilk yonetici hesabi olusturulur
   (varsayilan parola yoktur). Ardindan iki adimli dogrulama (Microsoft/Google
   Authenticator) kurulmadan hicbir veri ekrani acilmaz.
-- Derleme ve testler: `tools/build-uusport.ps1` (web + API + tum testler; son kayit 72 test).
+- Derleme ve testler: `tools/build-uusport.ps1` (web + API + tum testler; son kayit 82 test, 17.10.2026).
 - Tam kontrol (derleme, testler, gizli bilgi/gercek veri/acik taramasi): `scripts/ci.ps1`.
 - Yeni veritabani/rol kurulumu: `tools/setup-uusport-dev-db.ps1`.
 - Kisayolu yeniden olusturma: `tools/create-desktop-shortcut.ps1`.
@@ -482,8 +499,8 @@ denenmeden guvenilir sayilmaz (operasyon proseduru Kapi C/D ile uyumlu).
 
 - Git deposu olusturuldu; ana dal `master`.
 - Ilk yerel commit 25 Eylul 2026'da denetim devri icin olusturuldu.
-- Uzak depo GitHub'da tanimli: `ensardemirr/UUSport`. Son commit `6f799d3`
-  (04.10.2026, M0 + M1). Baska RDP'ye tasima bu depodan klonlayarak yapilir.
+- Uzak depo GitHub'da tanimli: `ensardemirr/UUSport`. `master` son commit `6f799d3`
+  (04.10.2026, M0 + M1); M1.5 dali `claude/uusport-durumu-102mgc` GitHub'a itildi. Baska RDP'ye tasima bu depodan klonlayarak yapilir.
 - `.env`, anahtarlar, sertifikalar, yedekler, loglar, kurulum dosyalari ve yerel
   Obsidian ayarlari Git disinda tutulur.
 
@@ -648,7 +665,8 @@ Ayrintili standart:
    M1 kalani: S-16 (gercek Excel'in proje disina tasinmasi, kullanici eylemi), S-18
    (Windows servisi + release paketleme), S-11 kalani (HTTPS sertifikasi, guvenlik
    duvari, BitLocker), yedek zamanlanmis gorevinin kurulmasi. Sonra M2 (S-20..S-27).
-   Kullanici kararlari KU-1..KU-7 bekliyor (sentez bolum 6).
+   Kullanici kararlari KU-1..KU-7: 17.10.2026'da yanitlandi (bolum 0); KU-5 ve KU-6'nin
+   bir kismi bekliyor.
    `[KARAR]` **M1.5 coklu sirket** (ADR-012, 17.10.2026) M2'den once yapilir: migration
    (tenant kolonlari, uyelik, grup ici baglanti, tedarikci kodu, RLS v2), sirket baglami
    ara katmani, uyelik/yetki uclari ve ekranlari, sirket secici, raporlarda sirket boyutu,
@@ -692,6 +710,7 @@ Ayrintili standart:
 
 | Tarih | Surum | Yazan | Degisiklik |
 |---|---:|---|---|
+| 17.10.2026 | 3.5 | Claude Code | `[KULLANICI KARARI]` KU-1..KU-7 yanitlari islendi (bolum 0); KU-5 acik. Canli hedef Kasim 2026, paralel calisma yok (risk notu eklendi). Bayat satirlar duzeltildi (son commit, test sayisi 82, "kod yazilmadi"). CLAUDE.md'deki 25 Eylul "ara" paragrafi kullanici onayiyla kaldirildi. Sentezde ADR-012 numara cakismasi giderildi (SaaS kapilari -> ADR-018). |
 | 17.10.2026 | 3.4 | Claude Code | **M1.5 madde 3:** liste satirlarina sirket kodu (`company`) ve rapor/pano `totalsByCompany` kirilimi eklendi; daily-collections birlesik gorunumde sirket bazinda ayri satir. 82 test yesil. Ayrinti: devir notu 2.7. |
 | 17.10.2026 | 3.3 | Claude Code | **M1.5 MultiCompanyTests yazildi** (`tests/UUSport.Tests/MultiCompanyTests.cs`, 9 test; toplam 81 test, `tools/build-uusport.ps1` yesil). Testler iki **gercek hata** yakaladi ve duzeltildi: denetim kaydi (`audit.audit_event`, RLS tekil yazma sirketi) baska sirketin kimligiyle yazilinca 500 veriyordu; bu yuzden ev sirketi ilk sirket (UUS) olmayan kullanici giris yapamiyor, grup yoneticisi baska sirkette uyelik veremiyordu. Cozum: `AuditSaveExtensions.SaveChangesAcrossCompaniesAsync` (ayni transaction'da yazma baglamini hedef sirkete cevirir; is kaydi ve denetim birlikte kalir); `UserEndpoints` ve `AuthEndpoints` (LogAuthAsync, MFA) kullanir. `EndpointAuthorizationTests` ile `MultiCompanyTests` ortam degiskeni/kurulum belirteci paylastigi icin `WebHost` koleksiyonunda seri kosar. Ayrinti: devir notu bolum 2.6. |
 | 17.10.2026 | 3.2 | Claude Code | **M1.5 uygulamasina baslandi** (dal `claude/uusport-durumu-102mgc`): migration `20261017050655_M15MultiCompany` (tenant kolonlari, `identity.company_membership`, `is_group_admin`, `related_tenant_id`, `supplier_item_code`, RLS v2 okuma-kume/yazma-tekil, veri tasima: ilk kiraci UUS, roller uyelige, kod on ekleri); `CompanyContextMiddleware` + `CompanyAccess` + yetki anahtarlari (`Permissions`), politikalar Staff/Admin/GroupAdmin/perm:*; `/api/companies`, kullanici uclari uyelik modeliyle yeniden; `/api/auth/me` sirket listesi; kod on eki (cari, urun, Excel). Linux bulut oturumunda .NET 10 + PostgreSQL 16 ile **72/72 test gecti**; gizli bilgi icin ortam degiskeni gecisi (yalniz Windows disi test). Web arayuzu, MultiCompanyTests, grup ici islemler ve belgeler HENUZ YOK. Devir notu: `docs/project-memory/M15_COKLU_SIRKET_DEVIR_NOTU_2026-10-17.md` (bir sonraki oturum once bunu okur). |

@@ -7,10 +7,6 @@ Her calismanin basinda sirayla sunlari oku:
 1. `AGENTS.md`
 2. `docs/project-memory/UUSPORT_ANA_HAFIZA.md`
 
-25 Eylul 2026 itibariyla gelistirmeye ara verildi. Bagimsiz salt okunur denetim
-istegi ve kapsam: `docs/reviews/CLAUDE_CODE_UUSPORT_TAM_DENETIM_PROMPTU_2026-09-25.md`.
-Denetim bulgularini once sohbette raporla; bu asamada proje dosyalarini degistirme.
-
 Ana hafizada `[DOGRU]`, `[KARAR]`, `[ONERI]` ve `[ACIK]` etiketleri birbirinden
 ayrilir. `[ONERI]` veya `[ACIK]` bir konuyu onaylanmis karar gibi uygulama.
 
