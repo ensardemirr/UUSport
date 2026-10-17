@@ -10,28 +10,68 @@ public abstract class TenantEntity
     public Guid? CreatedByUserId { get; set; }
 }
 
+/// <summary>
+/// Sirket (tuzel kisilik, bir vergi kimlik numarasi) = kiraci (ADR-012 2.1). Her sirketin kendi
+/// carileri, katalogu, kasa/banka hesaplari ve belge numaralari vardir; RLS siniri budur.
+/// </summary>
 public sealed class Tenant
 {
     public Guid Id { get; set; } = Guid.CreateVersion7();
     public string Name { get; set; } = string.Empty;
+    /// <summary>Kisa kod (ASCII buyuk harf, 2-6): ekranda rozet ve cari/urun kodlarinda on ek (`UUS-C000001`).</summary>
+    public string Code { get; set; } = string.Empty;
+    public string? LegalName { get; set; }
+    /// <summary>Vergi kimlik numarasi; yalniz canlida girilir, gelistirmede bos kalir.</summary>
+    public string? TaxNumber { get; set; }
+    public string? TaxOffice { get; set; }
+    public bool IsActive { get; set; } = true;
+    public short SortOrder { get; set; }
+    /// <summary>Arayuzdeki sirket rengi anahtari (erisilebilir paletten).</summary>
+    public string? ColorKey { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
+/// <summary>Sirket basina roller (ADR-012 2.2). Identity rol tablosu artik yetki kaynagi degildir.</summary>
 public static class Roles
 {
     public const string Yonetici = "Yonetici";
     public const string Muhasebe = "Muhasebe";
-    public static readonly string[] All = [Yonetici, Muhasebe];
+    /// <summary>Salt okunur ortak: ne gorecegi yetki anahtarlariyla parametriktir, yazamaz (ADR-012 2.4).</summary>
+    public const string Ortak = "Ortak";
+    public static readonly string[] All = [Yonetici, Muhasebe, Ortak];
 }
 
 public sealed class AppUser : IdentityUser<Guid>
 {
+    /// <summary>Ev sirketi: baslik gonderilmediginde varsayilan secim. Uyelik tablosu asil kaynaktir.</summary>
     public Guid TenantId { get; set; }
     public string FullName { get; set; } = string.Empty;
     /// <summary>Kullanicinin uygulayabilecegi en yuksek iskonto yuzdesi (akis belgesi 3.1).</summary>
     public decimal MaxDiscountPercent { get; set; }
     public bool IsActive { get; set; } = true;
+    /// <summary>Grup yoneticisi (patron): tum sirketleri gorur; sirket, kullanici ve uyelik yonetir (ADR-012 2.2).</summary>
+    public bool IsGroupAdmin { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+/// <summary>
+/// Kullanicinin bir sirketteki rolu (ADR-012 2.2). RLS'e tabi degildir (grup duzeyinde kullanici
+/// yonetimi); erisimi API katmaninda grup yoneticisi veya o sirketin Yonetici'si alir.
+/// </summary>
+public sealed class CompanyMembership
+{
+    public Guid Id { get; set; } = Guid.CreateVersion7();
+    public Guid UserId { get; set; }
+    public Guid TenantId { get; set; }
+    public string Role { get; set; } = Roles.Muhasebe;
+    public bool IsActive { get; set; } = true;
+    /// <summary>Rol sablonuna ek verilen yetki anahtarlari (Ortak icin parametrik gorunurluk, ADR-012 2.4).</summary>
+    public string[] GrantedKeys { get; set; } = [];
+    /// <summary>Rol sablonundan alinan yetki anahtarlari.</summary>
+    public string[] DeniedKeys { get; set; } = [];
+    public Guid? GrantedByUserId { get; set; }
+    public DateTimeOffset GrantedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? RevokedAt { get; set; }
 }
 
 public sealed class AppRole : IdentityRole<Guid>
@@ -59,6 +99,8 @@ public sealed class Party : TenantEntity
     public string SearchKey { get; set; } = string.Empty;
     public bool IsActive { get; set; } = true;
     public Guid? ImportBatchId { get; set; }
+    /// <summary>Grup ici cari: bu cari grubun baska bir sirketini temsil eder (ADR-012 2.5).</summary>
+    public Guid? RelatedTenantId { get; set; }
 }
 
 public sealed class Athlete : TenantEntity
@@ -91,6 +133,18 @@ public sealed class Item : TenantEntity
     public string SearchKey { get; set; } = string.Empty;
     public bool IsActive { get; set; } = true;
     public Guid? ImportBatchId { get; set; }
+}
+
+/// <summary>
+/// Tedarikcinin ayni urun icin kullandigi kod/barkod (ADR-012 2.8). Bizim kodumuz ile tedarikci kodu
+/// ayri kavramdir; alis faturasi girisinde satir once buradan aranir, boylece ayni urun ikinci kez acilmaz.
+/// </summary>
+public sealed class SupplierItemCode : TenantEntity
+{
+    public Guid ItemId { get; set; }
+    public Guid SupplierPartyId { get; set; }
+    public string SupplierCode { get; set; } = string.Empty;
+    public string? Barcode { get; set; }
 }
 
 /// <summary>Stok hareketi yalniz satis/alis satirindan veya tersinden uretilir (ADR-004 2.2).</summary>

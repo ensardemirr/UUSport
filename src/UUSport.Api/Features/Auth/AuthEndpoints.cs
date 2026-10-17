@@ -12,9 +12,12 @@ namespace UUSport.Api.Features.Auth;
 
 public static class Policies
 {
-    /// <summary>Personel: rol + iki adimli dogrulama acik (O74).</summary>
+    /// <summary>Personel: secili her sirkette uyelik + iki adimli dogrulama acik (O74, ADR-012).</summary>
     public const string Staff = "staff";
+    /// <summary>Secili her sirkette Yonetici veya grup yoneticisi.</summary>
     public const string Admin = "admin";
+    /// <summary>Grup yoneticisi (patron): sirket ve grup duzeyinde kullanici yonetimi.</summary>
+    public const string GroupAdmin = "group-admin";
     /// <summary>Yalniz oturum (iki adimli dogrulama kurulumu icin).</summary>
     public const string SignedIn = "signed-in";
 }
@@ -31,7 +34,8 @@ public sealed class MfaEnabledHandler(UserManager<AppUser> users) : Authorizatio
     }
 }
 
-public sealed record SetupInput(string OrganizationName, string UserName, string FullName, string Password, string Token);
+public sealed record SetupInput(string OrganizationName, string UserName, string FullName, string Password, string Token,
+    string? CompanyCode = null);
 public sealed record LoginInput(string UserName, string Password);
 public sealed record CodeInput(string Code);
 
@@ -52,7 +56,7 @@ public static class AuthEndpoints
         // Kurulum jetonu (S-12): sunucu makinesinde uretilir, ag/internetteki baskasi ilk
         // yonetici hesabini calamaz.
         setup.MapPost("", async (SetupInput input, AppDbContext db, UserManager<AppUser> users,
-            RoleManager<AppRole> roles, TenantContext tenant, TenantResolver resolver, AuditWriter audit,
+            TenantContext tenant, TenantResolver resolver, AuditWriter audit,
             SetupTokenService tokens, CancellationToken ct) =>
         {
             if (await db.Users.AnyAsync(ct))
@@ -62,29 +66,38 @@ public static class AuthEndpoints
             var orgName = TextRules.CleanName(input.OrganizationName);
             if (orgName.Length == 0) throw new DomainException("org", "Kurum adı zorunlu.");
 
-            var tenantEntity = await db.Tenants.FirstOrDefaultAsync(ct);
+            var tenantEntity = await db.Tenants.OrderBy(t => t.CreatedAt).FirstOrDefaultAsync(ct);
             if (tenantEntity is null)
             {
-                tenantEntity = new Tenant { Name = orgName };
+                tenantEntity = new Tenant
+                {
+                    Name = orgName,
+                    Code = string.IsNullOrWhiteSpace(input.CompanyCode)
+                        ? Companies.CompanyCodes.Derive(orgName)
+                        : Companies.CompanyCodes.Normalize(input.CompanyCode),
+                };
                 db.Tenants.Add(tenantEntity);
                 await db.SaveChangesAsync(ct);
             }
             tenant.TenantId = tenantEntity.Id;
+            tenant.ReadTenantIds = [tenantEntity.Id];
             resolver.Set(tenantEntity.Id);
 
-            foreach (var r in Roles.All)
-                if (!await roles.RoleExistsAsync(r)) await roles.CreateAsync(new AppRole(r));
-
+            // Ilk kullanici grup yoneticisidir (patron): tum sirketleri gorur, sirket ve uyelik yonetir (ADR-012).
             var user = new AppUser
             {
                 UserName = input.UserName.Trim().ToLowerInvariant(),
                 FullName = TextRules.CleanName(input.FullName),
                 TenantId = tenantEntity.Id,
                 MaxDiscountPercent = 100,
+                IsGroupAdmin = true,
             };
             var created = await users.CreateAsync(user, input.Password);
             if (!created.Succeeded) throw new DomainException("password", Describe(created));
-            await users.AddToRoleAsync(user, Roles.Yonetici);
+            db.CompanyMemberships.Add(new CompanyMembership
+            {
+                UserId = user.Id, TenantId = tenantEntity.Id, Role = Roles.Yonetici, GrantedByUserId = user.Id,
+            });
 
             // Varsayilan kasa hesaplari: kullanici sonra degistirebilir.
             db.CashAccounts.AddRange(
@@ -179,23 +192,28 @@ public static class AuthEndpoints
             return Results.Ok(new { ok = true });
         });
 
-        auth.MapGet("/me", async (HttpContext http, UserManager<AppUser> users, AppDbContext db) =>
+        auth.MapGet("/me", async (HttpContext http, UserManager<AppUser> users, AppDbContext db, CompanyAccess access) =>
         {
             var user = await users.GetUserAsync(http.User);
             if (user is null || !user.IsActive) return Results.Ok(new { authenticated = false });
-            var roles = await users.GetRolesAsync(user);
-            // Tek yonetici uyarisi (S-15): o kisi hesabindan cikamazsa/parolasini kaybederse
-            // kimse yonetici islemi yapamaz. Sunucu tarafinda sayilir, sahte bir sayimla atlatilamaz.
-            var onlyAdmin = roles.Contains(Roles.Yonetici) &&
-                await db.Users.CountAsync(u => u.IsActive && u.TenantId == user.TenantId
-                    && db.UserRoles.Any(ur => ur.UserId == u.Id
-                        && db.Roles.Any(r => r.Id == ur.RoleId && r.Name == Roles.Yonetici))) < 2;
+            // Secili sirketlerdeki etkin roller; arayuz menuyu buna gore kurar (yetki yine sunucudadir).
+            var selectedGrants = access.Selected.Select(access.GrantFor).Where(g => g is not null).Select(g => g!).ToList();
+            var roles = selectedGrants.Select(g => g.Role).Distinct().ToList();
+            // Tek grup yoneticisi uyarisi (S-15): o kisi hesabindan cikamazsa/parolasini kaybederse
+            // kimse grup islemi yapamaz. Sunucu tarafinda sayilir, sahte bir sayimla atlatilamaz.
+            var onlyAdmin = user.IsGroupAdmin && await db.Users.CountAsync(u => u.IsActive && u.IsGroupAdmin) < 2;
             return Results.Ok(new
             {
                 authenticated = true,
                 userName = user.UserName,
                 fullName = user.FullName,
                 roles,
+                isGroupAdmin = user.IsGroupAdmin,
+                isAdmin = access.IsAdminInAllSelected(),
+                canWrite = access.Selected.Count == 1 && access.HasInAllSelected(Permissions.Write),
+                permissions = Permissions.All.Where(access.HasInAllSelected),
+                companies = access.Allowed.Select(a => new { id = a.TenantId, a.Code, a.Name, a.Role, permissions = a.Permissions.OrderBy(p => p) }),
+                selectedCompanyIds = access.Selected,
                 maxDiscountPercent = user.MaxDiscountPercent,
                 mfaEnabled = user.TwoFactorEnabled,
                 onlyAdmin,

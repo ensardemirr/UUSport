@@ -69,7 +69,7 @@ public static class AccountingEndpoints
             var reversed = rows.Where(r => r.ReversesAllocationId != null).Select(r => r.ReversesAllocationId!.Value).ToHashSet();
             return Results.Ok(rows.Select(r => new { r.Id, r.TradeLineId, r.Amount, r.ItemName, r.OccurredOn,
                 isReversal = r.ReversesAllocationId != null, isReversed = reversed.Contains(r.Id) }));
-        });
+        }).RequirePermission(Permissions.LedgerRead);
 
         g.MapPost("/allocations/{id:guid}/reverse", async (Guid id, AccountingService s, CancellationToken ct) =>
         {
@@ -112,13 +112,13 @@ public static class AccountingEndpoints
                     lineGross = lines.GetValueOrDefault(l.TradeLineId)?.GrossAmount,
                 }),
             });
-        });
+        }).RequirePermission(Permissions.DocumentsRead);
 
         g.MapPost("/documents/{id:guid}/cancel", async (Guid id, ReasonInput input, AccountingService s, CancellationToken ct) =>
         {
             await s.CancelDocumentAsync(id, input.Reason, ct);
             return Results.Ok(new { ok = true });
-        });
+        }).RequirePermission(Permissions.DocumentsRead);
 
         g.MapPost("/opening-balances", async (OpeningBalanceInput input, AccountingService s, CancellationToken ct) =>
         {
@@ -136,7 +136,7 @@ public static class AccountingEndpoints
 
         // Hesap hareketleri listesi (surum 2 hazirlik notu): tum cariler, opsiyonel cari/tarih filtresi.
         g.MapGet("/ledger", async (Guid? partyId, DateOnly? from, DateOnly? to, AccountingQueries q, CancellationToken ct) =>
-            Results.Ok(await q.AllLedgerAsync(partyId, from, to, ct)));
+            Results.Ok(await q.AllLedgerAsync(partyId, from, to, ct))).RequirePermission(Permissions.LedgerRead);
 
         g.MapGet("/dashboard", async (AppDbContext db, AccountingQueries q, CancellationToken ct) =>
         {
@@ -159,6 +159,6 @@ public static class AccountingEndpoints
                 pendingOpeningBalances = pending.PendingOpeningBalances.Count,
                 recentPayments = payments.Take(8),
             });
-        });
+        }).RequirePermission(Permissions.LedgerRead);
     }
 }

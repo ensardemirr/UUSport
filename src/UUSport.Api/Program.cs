@@ -13,6 +13,7 @@ using UUSport.Api.Features.Accounting;
 using UUSport.Api.Features.Audit;
 using UUSport.Api.Features.Auth;
 using UUSport.Api.Features.Cash;
+using UUSport.Api.Features.Companies;
 using UUSport.Api.Features.Catalog;
 using UUSport.Api.Features.Imports;
 using UUSport.Api.Features.Parties;
@@ -141,13 +142,21 @@ builder.Services.Configure<CookieAuthenticationOptions>(IdentityConstants.TwoFac
     o.ExpireTimeSpan = TimeSpan.FromDays(30);
 });
 
+builder.Services.AddScoped<CompanyAccess>();
 builder.Services.AddScoped<IAuthorizationHandler, MfaEnabledHandler>();
-builder.Services.AddAuthorizationBuilder()
+builder.Services.AddScoped<IAuthorizationHandler, CompanyAuthorizationHandler>();
+// Roller sirket basinadir (ADR-012): Identity rol claim'i degil, CompanyAccess (uyelik tablosu) karar verir.
+var authz = builder.Services.AddAuthorizationBuilder()
     .AddPolicy(Policies.SignedIn, p => p.RequireAuthenticatedUser())
     .AddPolicy(Policies.Staff, p => p.RequireAuthenticatedUser()
-        .RequireRole(Roles.Yonetici, Roles.Muhasebe).AddRequirements(new MfaEnabledRequirement()))
+        .AddRequirements(new MfaEnabledRequirement(), new CompanyRequirement(CompanyRequirement.Level.Member)))
     .AddPolicy(Policies.Admin, p => p.RequireAuthenticatedUser()
-        .RequireRole(Roles.Yonetici).AddRequirements(new MfaEnabledRequirement()));
+        .AddRequirements(new MfaEnabledRequirement(), new CompanyRequirement(CompanyRequirement.Level.Admin)))
+    .AddPolicy(Policies.GroupAdmin, p => p.RequireAuthenticatedUser()
+        .AddRequirements(new MfaEnabledRequirement(), new CompanyRequirement(CompanyRequirement.Level.GroupAdmin)));
+foreach (var key in Permissions.All)
+    authz.AddPolicy(Permissions.PolicyName(key), p => p.RequireAuthenticatedUser()
+        .AddRequirements(new MfaEnabledRequirement(), new PermissionRequirement(key)));
 
 builder.Services.AddRateLimiter(o =>
 {
@@ -166,10 +175,12 @@ builder.Services.ConfigureHttpJsonOptions(o =>
 builder.Services.Configure<FormOptions>(o => o.MultipartBodyLengthLimit = 16 * 1024 * 1024);
 
 var keyDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "UUSport", "keys");
-builder.Services.AddDataProtection()
+var dataProtection = builder.Services.AddDataProtection()
     .SetApplicationName("UUSport")
-    .PersistKeysToFileSystem(new DirectoryInfo(keyDirectory))
-    .ProtectKeysWithDpapi();
+    .PersistKeysToFileSystem(new DirectoryInfo(keyDirectory));
+// Anahtarlar Windows'ta DPAPI ile sarilir. Windows disi ortam yalniz CI/test icindir (canli her
+// zaman Windows); orada anahtar dosyasi sarilmadan yazilir ve dizin gecicidir.
+if (OperatingSystem.IsWindows()) dataProtection.ProtectKeysWithDpapi();
 
 builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
 builder.Services.AddScoped<AuditWriter>();
@@ -194,16 +205,9 @@ app.UseMiddleware<ErrorHandlingMiddleware>();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.UseRateLimiter();
-app.Use(async (ctx, next) =>
-{
-    if (ctx.Request.Path.StartsWithSegments("/api"))
-    {
-        var tenant = ctx.RequestServices.GetRequiredService<TenantContext>();
-        tenant.TenantId = await ctx.RequestServices.GetRequiredService<TenantResolver>().GetAsync(ctx.RequestAborted);
-    }
-    await next(ctx);
-});
 app.UseAuthentication();
+// Sirket baglami kimlikten SONRA, yetkiden ONCE cozulur (ADR-012 2.3).
+app.UseMiddleware<CompanyContextMiddleware>();
 app.UseAuthorization();
 
 // Anonim erisimde yalniz "ok" doner (izleme/LAN kontrolu icin); surum ve migration bilgisi
@@ -216,6 +220,7 @@ app.MapGet("/api/health", async (HttpContext http, AppDbContext db, Cancellation
 });
 app.MapAuth();
 app.MapUsers();
+app.MapCompanies();
 app.MapParties();
 app.MapCatalog();
 app.MapAccounting();

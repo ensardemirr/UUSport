@@ -11,7 +11,7 @@ public static class ReportEndpoints
 {
     public static void MapReports(this IEndpointRouteBuilder app)
     {
-        var g = app.MapGroup("/api/reports").RequireAuthorization(Policies.Staff);
+        var g = app.MapGroup("/api/reports").RequireAuthorization(Policies.Staff).RequirePermission(Permissions.ReportsSummary);
 
         g.MapGet("/daily-collections", async (DateOnly? from, DateOnly? to, AccountingQueries q, CancellationToken ct) =>
         {
@@ -47,7 +47,7 @@ public static class ReportEndpoints
                 totalReceivable = list.Where(x => x.Balance > 0).Sum(x => x.Balance),
                 totalPayable = -list.Where(x => x.Balance < 0).Sum(x => x.Balance),
             });
-        });
+        }).RequirePermission(Permissions.ReportsDetail);
 
         g.MapGet("/uninvoiced", async (string? direction, AccountingQueries q, CancellationToken ct) =>
         {
@@ -58,13 +58,13 @@ public static class ReportEndpoints
                 rows = lines,
                 totalPendingGross = lines.Sum(l => Math.Abs(l.GrossAmount * l.PendingQuantity / l.Quantity)),
             });
-        });
+        }).RequirePermission(Permissions.ReportsDetail);
 
         g.MapGet("/unallocated", async (AccountingQueries q, CancellationToken ct) =>
         {
             var rows = (await q.PaymentsAsync(null, ct)).Where(p => p.UnallocatedAmount > 0).ToList();
             return Results.Ok(new { rows, total = rows.Sum(r => r.UnallocatedAmount) });
-        });
+        }).RequirePermission(Permissions.ReportsDetail);
 
         g.MapGet("/stock", async (AppDbContext db, CancellationToken ct) =>
         {
@@ -72,9 +72,9 @@ public static class ReportEndpoints
             var stock = await db.StockMovements.GroupBy(m => m.ItemId)
                 .Select(x => new { x.Key, Qty = x.Sum(m => m.Quantity) }).ToDictionaryAsync(x => x.Key, x => x.Qty, ct);
             return Results.Ok(items.Select(i => new { i.Id, i.Code, i.Name, i.Unit, i.IsActive, stockOnHand = stock.GetValueOrDefault(i.Id) }));
-        });
+        }).RequirePermission(Permissions.CatalogRead);
 
-        var audit = app.MapGroup("/api/audit").RequireAuthorization(Policies.Admin);
+        var audit = app.MapGroup("/api/audit").RequireAuthorization(Policies.Admin).RequirePermission(Permissions.AuditRead);
         audit.MapGet("", async (int? take, string? action, AppDbContext db, CancellationToken ct) =>
         {
             var q = db.AuditEvents.AsQueryable();

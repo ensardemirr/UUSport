@@ -57,7 +57,10 @@ public sealed class EndpointAuthorizationTests : IAsyncLifetime
         ("POST", "/api/cash-accounts"), ("PUT", "/api/cash-accounts/{id:guid}"),
         ("GET", "/api/users"), ("POST", "/api/users"), ("PUT", "/api/users/{id:guid}"),
         ("POST", "/api/users/{id:guid}/password"), ("POST", "/api/users/{id:guid}/reset-mfa"),
+        ("GET", "/api/users/permission-keys"),
         ("GET", "/api/audit"),
+        // Grup yoneticisi (ADR-012): sirket acma/duzenleme yalniz patrona aittir; Muhasebe 403 alir.
+        ("GET", "/api/companies/all"), ("POST", "/api/companies"), ("PUT", "/api/companies/{id:guid}"),
     };
 
     public async Task InitializeAsync()
@@ -125,7 +128,7 @@ public sealed class EndpointAuthorizationTests : IAsyncLifetime
             var allowsAnonymous = ep.Metadata.GetMetadata<IAllowAnonymous>() is not null;
             // Grup ve uc-ozel RequireAuthorization birleşik (VE) uygulanir; herhangi biri Admin
             // ise personel (Muhasebe) bu uca giremez.
-            var isAdminOnly = authData.Any(a => a.Policy == Policies.Admin);
+            var isAdminOnly = authData.Any(a => a.Policy is Policies.Admin or Policies.GroupAdmin);
 
             foreach (var method in methods)
             {

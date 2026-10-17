@@ -14,11 +14,13 @@ public sealed record CashAccountInput(string Name, CashAccountKind Kind, Guid? P
 
 public static class CatalogEndpoints
 {
-    public static async Task<string> NextItemCodeAsync(AppDbContext db, CancellationToken ct)
+    /// <summary>Sonraki urun kodu: `&lt;sirket&gt;-U000001` (ADR-012 2.8).</summary>
+    public static async Task<string> NextItemCodeAsync(AppDbContext db, TenantContext tenant, CancellationToken ct)
     {
-        var codes = await db.Items.Where(i => i.Code.StartsWith("U")).Select(i => i.Code).ToListAsync(ct);
-        var max = codes.Select(c => int.TryParse(c.AsSpan(1), out var n) ? n : 0).DefaultIfEmpty(0).Max();
-        return $"U{max + 1:000000}";
+        var prefix = await tenant.RequireCodeAsync(db, ct) + "-U";
+        var codes = await db.Items.Where(i => i.Code.StartsWith(prefix)).Select(i => i.Code).ToListAsync(ct);
+        var max = codes.Select(c => int.TryParse(c.AsSpan(prefix.Length), out var n) ? n : 0).DefaultIfEmpty(0).Max();
+        return $"{prefix}{max + 1:000000}";
     }
 
     public static void ApplyItem(Item item, ItemInput input)
@@ -39,7 +41,7 @@ public static class CatalogEndpoints
 
     public static void MapCatalog(this IEndpointRouteBuilder app)
     {
-        var items = app.MapGroup("/api/items").RequireAuthorization(Policies.Staff);
+        var items = app.MapGroup("/api/items").RequireAuthorization(Policies.Staff).RequirePermission(Permissions.CatalogRead);
 
         items.MapGet("", async (string? q, bool? includeInactive, AppDbContext db, CancellationToken ct) =>
         {
@@ -67,7 +69,9 @@ public static class CatalogEndpoints
             AuditWriter audit, CancellationToken ct) =>
         {
             var item = new Item { TenantId = tenant.Require(), CreatedByUserId = user.UserId };
-            item.Code = string.IsNullOrWhiteSpace(input.Code) ? await NextItemCodeAsync(db, ct) : input.Code.Trim().ToUpperInvariant();
+            item.Code = string.IsNullOrWhiteSpace(input.Code)
+                ? await NextItemCodeAsync(db, tenant, ct)
+                : Companies.CompanyCodes.WithPrefix(await tenant.RequireCodeAsync(db, ct), input.Code);
             ApplyItem(item, input);
             db.Items.Add(item);
             audit.Add("item.create", "item", item.Id, new { item.Code, item.UnitPrice, item.VatRate });
@@ -75,21 +79,22 @@ public static class CatalogEndpoints
             return Results.Ok(new { item.Id, item.Code });
         });
 
-        items.MapPut("/{id:guid}", async (Guid id, ItemInput input, AppDbContext db, AuditWriter audit, CancellationToken ct) =>
+        items.MapPut("/{id:guid}", async (Guid id, ItemInput input, AppDbContext db, TenantContext tenant, AuditWriter audit, CancellationToken ct) =>
         {
             var item = await db.Items.SingleOrDefaultAsync(i => i.Id == id, ct) ?? throw new NotFoundException("Ürün/hizmet");
             var hasMovements = await db.TradeLines.AnyAsync(l => l.ItemId == id, ct);
             if (hasMovements && item.Kind != input.Kind)
                 throw new DomainException("kind", "Hareket görmüş bir kalemin stok/hizmet türü değiştirilemez.");
             var oldPrice = item.UnitPrice;
-            if (!string.IsNullOrWhiteSpace(input.Code)) item.Code = input.Code.Trim().ToUpperInvariant();
+            if (!string.IsNullOrWhiteSpace(input.Code))
+                item.Code = Companies.CompanyCodes.WithPrefix(await tenant.RequireCodeAsync(db, ct), input.Code);
             ApplyItem(item, input);
             audit.Add("item.update", "item", item.Id, new { oldPrice, item.UnitPrice, item.VatRate, item.IsActive });
             await db.SaveChangesAsync(ct);
             return Results.Ok(new { ok = true });
         });
 
-        var cash = app.MapGroup("/api/cash-accounts").RequireAuthorization(Policies.Staff);
+        var cash = app.MapGroup("/api/cash-accounts").RequireAuthorization(Policies.Staff).RequirePermission(Permissions.CashRead);
 
         cash.MapGet("", async (AppDbContext db, CancellationToken ct) =>
         {

@@ -1,6 +1,6 @@
 # UU Sport Ana Hafiza
 
-**Surum:** 3.1  
+**Surum:** 3.2  
 **Olusturma tarihi:** 23 Eylul 2026  
 **Son guncelleme:** 17 Ekim 2026  
 **Ilk yazar:** Codex  
@@ -30,6 +30,7 @@ anahtari veya gercek ogrenci/veli verisi icermez.
   M1 (guvenli isletim temeli) buyuk olcude tamamlandi; 4 migration, 72 test geciyor
   (son kayit). Ayrinti: degisiklik gecmisi 2.7 ve 2.8, plan:
   `docs/reviews/UUSPORT_DANISMA_SENTEZ_2026-09-27.md`.
+- `[DOGRU]` 17 Ekim 2026: M1.5 sunucu tarafi kismen yazildi (migration, sirket baglami, yetki, uclar); web ve testlerin bir kismi kaldi. **Devir notu:** `docs/project-memory/M15_COKLU_SIRKET_DEVIR_NOTU_2026-10-17.md`.
 - `[KARAR]` 17 Ekim 2026, **ADR-012 coklu sirket**: uc vergi kimlik numarali sirket
   (**UUSPORT / FITNESS / TIYATRO**, kodlar `UUS/FIT/TIY`) ayni kurulumda; **sirket = kiraci**
   (`core.tenant`), sirket basina rol (`identity.company_membership`: Yonetici, Muhasebe,
@@ -691,6 +692,7 @@ Ayrintili standart:
 
 | Tarih | Surum | Yazan | Degisiklik |
 |---|---:|---|---|
+| 17.10.2026 | 3.2 | Claude Code | **M1.5 uygulamasina baslandi** (dal `claude/uusport-durumu-102mgc`): migration `20261017050655_M15MultiCompany` (tenant kolonlari, `identity.company_membership`, `is_group_admin`, `related_tenant_id`, `supplier_item_code`, RLS v2 okuma-kume/yazma-tekil, veri tasima: ilk kiraci UUS, roller uyelige, kod on ekleri); `CompanyContextMiddleware` + `CompanyAccess` + yetki anahtarlari (`Permissions`), politikalar Staff/Admin/GroupAdmin/perm:*; `/api/companies`, kullanici uclari uyelik modeliyle yeniden; `/api/auth/me` sirket listesi; kod on eki (cari, urun, Excel). Linux bulut oturumunda .NET 10 + PostgreSQL 16 ile **72/72 test gecti**; gizli bilgi icin ortam degiskeni gecisi (yalniz Windows disi test). Web arayuzu, MultiCompanyTests, grup ici islemler ve belgeler HENUZ YOK. Devir notu: `docs/project-memory/M15_COKLU_SIRKET_DEVIR_NOTU_2026-10-17.md` (bir sonraki oturum once bunu okur). |
 | 17.10.2026 | 3.1 | Claude Code | `[KULLANICI KARARI]` Coklu sirket Secenek A onaylandi, KU-8..KU-15 yanitlandi; **ADR-012** yazildi (`docs/decisions/ADR-012_COKLU_SIRKET_VE_KIRACI_MODELI.md`): sirketler UUSPORT/FITNESS/TIYATRO; sirket = kiraci; sirket basina rol + Ortak rolu parametrik gorunurluk; birlesik okuma / tekil yazma RLS; grup ici islemler onay kuyrugu ve `intercompany_link`; ayni veli ayri cari, fazla tahsilat `approved_adjustment` ile aktarim; musavir aktarim profili sirket basina; kodlarda `UUS-/FIT-/TIY-` on eki ve `supplier_item_code` esleme tablosu. Yol haritasina M1.5 eklendi. Kod degisikligi yok. |
 | 17.10.2026 | 3.0 | Claude Code | Kullanici istegiyle coklu sirket (uc VKN) yapi calismasi yazildi: `docs/designs/COKLU_SIRKET_YAPI_CALISMASI_2026-10-17.md`. Mevcut kod incelendi (tek kiraci, RLS tum tablolarda, kullanici basina tek rol, capraz kiraci testi yok). Uc secenek degerlendirildi; `[ONERI]` Secenek A: sirket = kiraci, `identity.company_membership` ile sirket basina rol, okuma icin `app.tenant_ids` (ANY) ve yazma icin tekil `app.tenant_id` RLS politikasi, ust cubukta sirket secici, birlesik modda yazma kapali, raporlarda sirket boyutu, yeni "Ortak" rolu, yetki anahtarlari ile tek matris. M2'den once "M1.5" onerildi; KU-8..KU-15 sorulari acildi. Kod degisikligi yok. |
 | 16.10.2026 | 2.9 | Claude Code | Eskimis ifadeler duzeltildi: durum satiri ve hizli durum M0/M1 ilerlemesiyle guncellendi; uzak depo (GitHub) ve son commit kaydedildi; 25.09 denetim arasi tarihsel olarak isaretlendi; test sayisi 31 -> 72; yedek betiklerinin varligi bilinen sinirlara islendi; migration araci `[ACIK]` -> `[DOGRU]` EF Core (4 migration); ADR-002/003'un standarda islendigi dogrulandi; siradaki calisma sirasi M1 kalanlari ve M2 ile guncellendi. Kod degisikligi yok. |

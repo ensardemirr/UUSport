@@ -17,7 +17,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataPr
     : IdentityDbContext<AppUser, AppRole, Guid>(options)
 {
     public DbSet<Tenant> Tenants => Set<Tenant>();
+    public DbSet<CompanyMembership> CompanyMemberships => Set<CompanyMembership>();
     public DbSet<Party> Parties => Set<Party>();
+    public DbSet<SupplierItemCode> SupplierItemCodes => Set<SupplierItemCode>();
     public DbSet<Athlete> Athletes => Set<Athlete>();
     public DbSet<Item> Items => Set<Item>();
     public DbSet<StockMovement> StockMovements => Set<StockMovement>();
@@ -90,6 +92,28 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataPr
             e.ToTable("tenant", "core");
             e.Property(x => x.Id).ValueGeneratedNever();
             e.Property(x => x.Name).HasMaxLength(200);
+            e.Property(x => x.Code).HasMaxLength(8).UseCollation("C");
+            e.Property(x => x.LegalName).HasMaxLength(300);
+            e.Property(x => x.TaxNumber).HasMaxLength(20).UseCollation("C");
+            e.Property(x => x.TaxOffice).HasMaxLength(120);
+            e.Property(x => x.ColorKey).HasMaxLength(30).UseCollation("C");
+            e.HasIndex(x => x.Code).IsUnique().HasDatabaseName("uq_tenant__code");
+        });
+
+        b.Entity<CompanyMembership>(e =>
+        {
+            e.ToTable("company_membership", "identity");
+            e.Property(x => x.Id).ValueGeneratedNever();
+            e.Property(x => x.Role).HasMaxLength(30).UseCollation("C");
+            e.Property(x => x.GrantedKeys).HasColumnType("text[]");
+            e.Property(x => x.DeniedKeys).HasColumnType("text[]");
+            e.HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(x => new { x.UserId, x.TenantId }).IsUnique().HasFilter("is_active")
+                .HasDatabaseName("uq_company_membership__user_tenant_active");
+            e.HasIndex(x => x.TenantId).HasDatabaseName("ix_company_membership__tenant");
+            var roleList = string.Join(", ", Domain.Roles.All.Select(r => $"'{r}'"));
+            e.ToTable(t => t.HasCheckConstraint("ck_company_membership__role_allowed", $"role IN ({roleList})"));
         });
 
         // ---- crm ----
@@ -107,6 +131,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataPr
             e.Property(x => x.SearchKey).HasMaxLength(400).UseCollation("C");
             e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique().HasDatabaseName("uq_party__tenant_code");
             e.HasIndex(x => new { x.TenantId, x.Phone }).HasDatabaseName("ix_party__tenant_phone");
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.RelatedTenantId).OnDelete(DeleteBehavior.Restrict);
+            // Bir sirkette ayni grup sirketi icin tek cari.
+            e.HasIndex(x => new { x.TenantId, x.RelatedTenantId }).IsUnique().HasFilter("related_tenant_id IS NOT NULL")
+                .HasDatabaseName("uq_party__tenant_related_tenant");
         });
 
         b.Entity<Athlete>(e =>
@@ -132,6 +160,18 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataPr
             e.Property(x => x.SearchKey).HasMaxLength(400).UseCollation("C");
             e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique().HasDatabaseName("uq_item__tenant_code");
             e.ToTable(t => t.HasCheckConstraint("ck_item__price_nonnegative", "unit_price >= 0"));
+        });
+
+        b.Entity<SupplierItemCode>(e =>
+        {
+            Tenant(e, "supplier_item_code", "inventory");
+            e.Property(x => x.SupplierCode).HasMaxLength(80).UseCollation("C");
+            e.Property(x => x.Barcode).HasMaxLength(40).UseCollation("C");
+            e.HasOne<Item>().WithMany().HasForeignKey(x => x.ItemId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Party>().WithMany().HasForeignKey(x => x.SupplierPartyId).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(x => new { x.TenantId, x.SupplierPartyId, x.SupplierCode }).IsUnique()
+                .HasDatabaseName("uq_supplier_item_code__tenant_supplier_code");
+            e.HasIndex(x => new { x.TenantId, x.Barcode }).HasDatabaseName("ix_supplier_item_code__tenant_barcode");
         });
 
         b.Entity<StockMovement>(e =>

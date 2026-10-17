@@ -236,6 +236,10 @@ namespace UUSport.Api.Data.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("is_active");
 
+                    b.Property<bool>("IsGroupAdmin")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_group_admin");
+
                     b.Property<bool>("LockoutEnabled")
                         .HasColumnType("boolean")
                         .HasColumnName("lockout_enabled");
@@ -580,6 +584,70 @@ namespace UUSport.Api.Data.Migrations
                     b.ToTable("check_note", "finance", t =>
                         {
                             t.HasCheckConstraint("ck_check_note__amount_positive", "amount > 0");
+                        });
+                });
+
+            modelBuilder.Entity("UUSport.Api.Domain.CompanyMembership", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.PrimitiveCollection<string[]>("DeniedKeys")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("denied_keys");
+
+                    b.Property<DateTimeOffset>("GrantedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("granted_at");
+
+                    b.Property<Guid?>("GrantedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("granted_by_user_id");
+
+                    b.PrimitiveCollection<string[]>("GrantedKeys")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("granted_keys");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<DateTimeOffset?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("revoked_at");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("role")
+                        .UseCollation("C");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_company_membership");
+
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("ix_company_membership__tenant");
+
+                    b.HasIndex("UserId", "TenantId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_company_membership__user_tenant_active")
+                        .HasFilter("is_active");
+
+                    b.ToTable("company_membership", "identity", t =>
+                        {
+                            t.HasCheckConstraint("ck_company_membership__role_allowed", "role IN ('Yonetici', 'Muhasebe', 'Ortak')");
                         });
                 });
 
@@ -1390,6 +1458,10 @@ namespace UUSport.Api.Data.Migrations
                         .HasColumnName("phone")
                         .UseCollation("C");
 
+                    b.Property<Guid?>("RelatedTenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("related_tenant_id");
+
                     b.Property<string>("SearchKey")
                         .IsRequired()
                         .HasMaxLength(400)
@@ -1410,12 +1482,20 @@ namespace UUSport.Api.Data.Migrations
                     b.HasKey("Id")
                         .HasName("pk_party");
 
+                    b.HasIndex("RelatedTenantId")
+                        .HasDatabaseName("ix_party_related_tenant_id");
+
                     b.HasIndex("TenantId", "Code")
                         .IsUnique()
                         .HasDatabaseName("uq_party__tenant_code");
 
                     b.HasIndex("TenantId", "Phone")
                         .HasDatabaseName("ix_party__tenant_phone");
+
+                    b.HasIndex("TenantId", "RelatedTenantId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_party__tenant_related_tenant")
+                        .HasFilter("related_tenant_id IS NOT NULL");
 
                     b.ToTable("party", "crm");
                 });
@@ -1618,15 +1698,95 @@ namespace UUSport.Api.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("UUSport.Api.Domain.SupplierItemCode", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Barcode")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("barcode")
+                        .UseCollation("C");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<Guid>("ItemId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("item_id");
+
+                    b.Property<string>("SupplierCode")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("supplier_code")
+                        .UseCollation("C");
+
+                    b.Property<Guid>("SupplierPartyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("supplier_party_id");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_supplier_item_code");
+
+                    b.HasIndex("ItemId")
+                        .HasDatabaseName("ix_supplier_item_code_item_id");
+
+                    b.HasIndex("SupplierPartyId")
+                        .HasDatabaseName("ix_supplier_item_code_supplier_party_id");
+
+                    b.HasIndex("TenantId", "Barcode")
+                        .HasDatabaseName("ix_supplier_item_code__tenant_barcode");
+
+                    b.HasIndex("TenantId", "SupplierPartyId", "SupplierCode")
+                        .IsUnique()
+                        .HasDatabaseName("uq_supplier_item_code__tenant_supplier_code");
+
+                    b.ToTable("supplier_item_code", "inventory");
+                });
+
             modelBuilder.Entity("UUSport.Api.Domain.Tenant", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasColumnName("code")
+                        .UseCollation("C");
+
+                    b.Property<string>("ColorKey")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("color_key")
+                        .UseCollation("C");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("LegalName")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("legal_name");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -1634,8 +1794,27 @@ namespace UUSport.Api.Data.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("name");
 
+                    b.Property<short>("SortOrder")
+                        .HasColumnType("smallint")
+                        .HasColumnName("sort_order");
+
+                    b.Property<string>("TaxNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("tax_number")
+                        .UseCollation("C");
+
+                    b.Property<string>("TaxOffice")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("tax_office");
+
                     b.HasKey("Id")
                         .HasName("pk_tenant");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("uq_tenant__code");
 
                     b.ToTable("tenant", "core");
                 });
@@ -1889,6 +2068,23 @@ namespace UUSport.Api.Data.Migrations
                         .HasConstraintName("fk_check_note_tenant_tenant_id");
                 });
 
+            modelBuilder.Entity("UUSport.Api.Domain.CompanyMembership", b =>
+                {
+                    b.HasOne("UUSport.Api.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_company_membership_tenant_tenant_id");
+
+                    b.HasOne("UUSport.Api.Domain.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_company_membership_app_user_user_id");
+                });
+
             modelBuilder.Entity("UUSport.Api.Domain.Document", b =>
                 {
                     b.HasOne("UUSport.Api.Domain.Party", null)
@@ -2069,6 +2265,12 @@ namespace UUSport.Api.Data.Migrations
                 {
                     b.HasOne("UUSport.Api.Domain.Tenant", null)
                         .WithMany()
+                        .HasForeignKey("RelatedTenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_party_tenant_related_tenant_id");
+
+                    b.HasOne("UUSport.Api.Domain.Tenant", null)
+                        .WithMany()
                         .HasForeignKey("TenantId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
@@ -2144,6 +2346,30 @@ namespace UUSport.Api.Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_stock_movement_tenant_tenant_id");
+                });
+
+            modelBuilder.Entity("UUSport.Api.Domain.SupplierItemCode", b =>
+                {
+                    b.HasOne("UUSport.Api.Domain.Item", null)
+                        .WithMany()
+                        .HasForeignKey("ItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_supplier_item_code_item_item_id");
+
+                    b.HasOne("UUSport.Api.Domain.Party", null)
+                        .WithMany()
+                        .HasForeignKey("SupplierPartyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_supplier_item_code_party_supplier_party_id");
+
+                    b.HasOne("UUSport.Api.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_supplier_item_code_tenant_tenant_id");
                 });
 
             modelBuilder.Entity("UUSport.Api.Domain.TradeLine", b =>

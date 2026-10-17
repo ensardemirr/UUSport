@@ -6,7 +6,7 @@ public static class LoanEndpoints
 {
     public static void MapLoans(this IEndpointRouteBuilder app)
     {
-        var g = app.MapGroup("/api/loans").RequireAuthorization(Policies.Staff);
+        var g = app.MapGroup("/api/loans").RequireAuthorization(Policies.Staff).RequirePermission(Permissions.CashRead);
 
         g.MapGet("", async (LoanService s, CancellationToken ct) => Results.Ok(await s.ListAsync(ct)));
 

@@ -13,7 +13,8 @@ public static class ImportEndpoints
 
     public static void MapImports(this IEndpointRouteBuilder app)
     {
-        var g = app.MapGroup("/api/imports").RequireAuthorization(Policies.Staff);
+        // Aktarim tek sirkete yazilir; salt okunur rol (Ortak) aktarim ekranini gormez.
+        var g = app.MapGroup("/api/imports").RequireAuthorization(Policies.Staff).RequirePermission(Permissions.Write);
 
         g.MapGet("/kinds", () => Results.Ok(ImportKinds.Fields.Select(k => new { kind = k.Key, fields = k.Value })));
 

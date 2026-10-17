@@ -67,7 +67,50 @@ public static class MigrationSecurity
         mb.Sql($"GRANT SELECT ON TABLE public.\"__EFMigrationsHistory\" TO {AppRole};");
     }
 
-    /// <summary>Verilen tablolarda RLS acar ve kiraci izolasyon politikasini kurar. Tekrar calistirilabilir.</summary>
+    /// <summary>
+    /// 20261017 (ADR-012) itibariyla kiraci (sirket) verisi tasiyan TUM tablolar. Dondurulmustur: sonraki
+    /// migration'lar yeni tablolari kendi ApplyRlsV2 cagrisina gecer, bu listeyi degistirmez.
+    /// </summary>
+    public static readonly string[] TenantTablesAsOf20261017 =
+    [
+        "crm.party", "academy.athlete", "inventory.item", "inventory.stock_movement", "inventory.supplier_item_code",
+        "billing.trade_line", "billing.document", "billing.document_vat_line", "billing.document_link",
+        "finance.cash_account", "finance.payment", "finance.payment_allocation", "finance.opening_balance",
+        "finance.ledger_entry", "finance.loan", "finance.loan_installment", "finance.check_note",
+        "integration.import_batch", "integration.import_row", "audit.audit_event",
+    ];
+
+    /// <summary>
+    /// Coklu sirket politikasi (ADR-012 2.3): OKUMA secili sirket kumesi (`app.tenant_ids`, virgulle ayrilmis),
+    /// YAZMA tam olarak bir sirket (`app.tenant_id`). Birlesik gorunumde yanlis sirkete kayit veritabani
+    /// seviyesinde imkansizdir. Politika adi ayni kalir (tenant_isolation); SchemaGuardTests metni dogrular.
+    /// </summary>
+    public const string ReadPolicySql =
+        "tenant_id = ANY (string_to_array(NULLIF(current_setting('app.tenant_ids', true), ''), ',')::uuid[])";
+
+    public const string WritePolicySql =
+        "tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid";
+
+    public static void ApplyRlsV2(MigrationBuilder mb, params string[] tables)
+    {
+        foreach (var table in tables)
+        {
+            const string policy = "tenant_isolation";
+            mb.Sql($"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY;");
+            mb.Sql($"ALTER TABLE {table} FORCE ROW LEVEL SECURITY;");
+            mb.Sql($"DROP POLICY IF EXISTS {policy} ON {table};");
+            mb.Sql($"""
+                CREATE POLICY {policy} ON {table}
+                  USING ({ReadPolicySql})
+                  WITH CHECK ({WritePolicySql});
+                """);
+        }
+    }
+
+    /// <summary>
+    /// Tek kiracili (v1) politika. Yalniz 20261017 oncesi migration'lar icindir; yeni tablolar ApplyRlsV2 kullanir.
+    /// Verilen tablolarda RLS acar ve kiraci izolasyon politikasini kurar. Tekrar calistirilabilir.
+    /// </summary>
     public static void ApplyRls(MigrationBuilder mb, params string[] tables)
     {
         foreach (var table in tables)

@@ -6,7 +6,7 @@ public static class CheckEndpoints
 {
     public static void MapChecks(this IEndpointRouteBuilder app)
     {
-        var g = app.MapGroup("/api/checks").RequireAuthorization(Policies.Staff);
+        var g = app.MapGroup("/api/checks").RequireAuthorization(Policies.Staff).RequirePermission(Permissions.CashRead);
 
         g.MapGet("", async (string? status, CheckService s, CancellationToken ct) => Results.Ok(await s.ListAsync(status, ct)));
 

@@ -63,7 +63,8 @@ public sealed class TestWorld : IAsyncDisposable
         var tenantId = Guid.CreateVersion7();
         await using (var db = CreateContext(new TenantContext()))
         {
-            db.Tenants.Add(new Tenant { Id = tenantId, Name = "Test " + tenantId.ToString("N")[..8] });
+            // Sirket kodu benzersizdir (ADR-012); her test kiracisi kendi kisa kodunu alir.
+            db.Tenants.Add(new Tenant { Id = tenantId, Name = "Test " + tenantId.ToString("N")[..8], Code = "T" + tenantId.ToString("N")[^5..].ToUpperInvariant() });
             await db.SaveChangesAsync();
         }
         return new TestWorld(tenantId, isAdmin, maxDiscount);

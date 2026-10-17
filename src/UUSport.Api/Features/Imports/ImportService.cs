@@ -220,12 +220,14 @@ public sealed class ImportService(AppDbContext db, TenantContext tenant, ICurren
         public Dictionary<string, Party> PartiesByPhone { get; } = new(StringComparer.Ordinal);
         public Dictionary<string, Party> PartiesByName { get; } = new(StringComparer.Ordinal);
         public Dictionary<string, Party> PartiesByCode { get; } = new(StringComparer.Ordinal);
+        /// <summary>Kod on eki (ADR-012 2.8): dosyadaki kodlar on eksiz de olsa sistem koduyla eslesir.</summary>
+        public string CompanyCode { get; set; } = string.Empty;
         public HashSet<string> ItemCodes { get; } = new(StringComparer.Ordinal);
     }
 
     private async Task<MatchContext> BuildMatchContext(string kind, CancellationToken ct)
     {
-        var ctx = new MatchContext();
+        var ctx = new MatchContext { CompanyCode = await tenant.RequireCodeAsync(db, ct) };
         if (kind == ImportKinds.Items)
         {
             foreach (var code in await db.Items.Select(i => i.Code).ToListAsync(ct)) ctx.ItemCodes.Add(code);
@@ -286,6 +288,7 @@ public sealed class ImportService(AppDbContext db, TenantContext tenant, ICurren
         var name = TextRules.CleanName(v.GetValueOrDefault("cari_adi"));
         if (name.Length == 0) errors.Add("Cari adı boş.");
         var code = v.GetValueOrDefault("cari_kodu")?.Trim().ToUpperInvariant();
+        if (!string.IsNullOrEmpty(code)) code = Companies.CompanyCodes.WithPrefix(ctx.CompanyCode, code);
         var kind = ParsePartyKind(v.GetValueOrDefault("tur"), errors);
         var phone = TextRules.NormalizePhone(v.GetValueOrDefault("telefon"));
         var email = TextRules.NormalizeEmail(v.GetValueOrDefault("eposta"));
@@ -313,6 +316,7 @@ public sealed class ImportService(AppDbContext db, TenantContext tenant, ICurren
         var name = TextRules.CleanName(v.GetValueOrDefault("ad"));
         if (name.Length == 0) errors.Add("Ad boş.");
         var code = v.GetValueOrDefault("kod")?.Trim().ToUpperInvariant();
+        if (!string.IsNullOrEmpty(code)) code = Companies.CompanyCodes.WithPrefix(ctx.CompanyCode, code);
         if (!string.IsNullOrEmpty(code) && ctx.ItemCodes.Contains(code)) warnings.Add("Bu kodla kalem zaten var; atlanacak.");
         var kindText = TextRules.SearchKey(v.GetValueOrDefault("tur"));
         var kind = kindText.StartsWith("stok", StringComparison.Ordinal) ? ItemKind.Stock : ItemKind.Service;
@@ -358,7 +362,7 @@ public sealed class ImportService(AppDbContext db, TenantContext tenant, ICurren
                         ?? (phone is not null ? ctx.PartiesByPhone.GetValueOrDefault(phone) : null);
             if (party is null)
             {
-                party = NewParty(batch, $"C{nextCode++:000000}", parentName, PartyKind.Customer, phone, null, null);
+                party = NewParty(batch, $"{ctx.CompanyCode}-C{nextCode++:000000}", parentName, PartyKind.Customer, phone, null, null);
                 created[key] = party;
             }
             row.PartyId = party.Id;
@@ -394,7 +398,7 @@ public sealed class ImportService(AppDbContext db, TenantContext tenant, ICurren
             var party = code is not null ? ctx.PartiesByCode.GetValueOrDefault(code) : null;
             if (party is null)
             {
-                party = NewParty(batch, code ?? $"C{nextCode++:000000}", v["cari_adi"]!, Enum.Parse<PartyKind>(v["tur"]!),
+                party = NewParty(batch, code ?? $"{ctx.CompanyCode}-C{nextCode++:000000}", v["cari_adi"]!, Enum.Parse<PartyKind>(v["tur"]!),
                     v["telefon"], v["eposta"], v["vergi_no"]);
                 ctx.PartiesByCode[party.Code] = party;
             }
@@ -408,12 +412,13 @@ public sealed class ImportService(AppDbContext db, TenantContext tenant, ICurren
     private async Task ApplyItems(ImportBatch batch, List<ImportRow> rows, CancellationToken ct)
     {
         var codes = (await db.Items.Select(i => i.Code).ToListAsync(ct)).ToHashSet(StringComparer.Ordinal);
-        var next = (await db.Items.Where(i => i.Code.StartsWith("U")).Select(i => i.Code).ToListAsync(ct))
-            .Select(c => int.TryParse(c.AsSpan(1), out var n) ? n : 0).DefaultIfEmpty(0).Max() + 1;
+        var itemPrefix = await tenant.RequireCodeAsync(db, ct) + "-U";
+        var next = (await db.Items.Where(i => i.Code.StartsWith(itemPrefix)).Select(i => i.Code).ToListAsync(ct))
+            .Select(c => int.TryParse(c.AsSpan(itemPrefix.Length), out var n) ? n : 0).DefaultIfEmpty(0).Max() + 1;
         foreach (var row in rows)
         {
             var v = Data(row);
-            var code = v["kod"] ?? $"U{next++:000000}";
+            var code = v["kod"] ?? $"{itemPrefix}{next++:000000}";
             if (!codes.Add(code)) continue;
             var item = new Item { TenantId = batch.TenantId, CreatedByUserId = user.UserId, ImportBatchId = batch.Id, Code = code };
             CatalogEndpoints.ApplyItem(item, new ItemInput(v["ad"]!, Enum.Parse<ItemKind>(v["tur"]!), code, v["birim"],
@@ -458,8 +463,9 @@ public sealed class ImportService(AppDbContext db, TenantContext tenant, ICurren
 
     private async Task<int> NextNumber(CancellationToken ct)
     {
-        var next = await PartyService.NextCodeAsync(db, "C", ct);
-        return int.Parse(next.AsSpan(1), CultureInfo.InvariantCulture);
+        var prefix = await tenant.RequireCodeAsync(db, ct) + "-C";
+        var next = await PartyService.NextCodeAsync(db, prefix, ct);
+        return int.Parse(next.AsSpan(prefix.Length), CultureInfo.InvariantCulture);
     }
 
     // ------------------------------------------------------------------ sablon indirme (surum 2 hazirlik notu madde 1)

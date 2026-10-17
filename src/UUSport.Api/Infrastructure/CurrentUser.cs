@@ -12,7 +12,8 @@ public interface ICurrentUser
     Task<decimal> GetMaxDiscountPercentAsync(CancellationToken ct);
 }
 
-public sealed class HttpCurrentUser(IHttpContextAccessor http, Microsoft.AspNetCore.Identity.UserManager<AppUser> users) : ICurrentUser
+public sealed class HttpCurrentUser(IHttpContextAccessor http, Microsoft.AspNetCore.Identity.UserManager<AppUser> users,
+    Features.Auth.CompanyAccess access) : ICurrentUser
 {
     private ClaimsPrincipal? Principal => http.HttpContext?.User;
 
@@ -21,7 +22,10 @@ public sealed class HttpCurrentUser(IHttpContextAccessor http, Microsoft.AspNetC
 
     public string? UserName => Principal?.Identity?.Name;
 
-    public bool IsInRole(string role) => Principal?.IsInRole(role) ?? false;
+    /// <summary>Rol sirket basinadir (ADR-012): secili yazma sirketindeki uyelikten okunur, Identity claim'inden degil.</summary>
+    public bool IsInRole(string role) =>
+        access.Resolved && access.Selected.Count > 0 &&
+        (access.IsGroupAdmin || access.Selected.All(id => access.GrantFor(id)?.Role == role));
 
     public async Task<decimal> GetMaxDiscountPercentAsync(CancellationToken ct)
     {

@@ -42,7 +42,7 @@ public static class PartyEndpoints
 {
     public static void MapParties(this IEndpointRouteBuilder app)
     {
-        var g = app.MapGroup("/api/parties").RequireAuthorization(Policies.Staff);
+        var g = app.MapGroup("/api/parties").RequireAuthorization(Policies.Staff).RequirePermission(Permissions.PartiesRead);
 
         g.MapGet("", async (string? q, string? kind, bool? includeInactive, AppDbContext db, CancellationToken ct) =>
         {
@@ -93,9 +93,11 @@ public static class PartyEndpoints
             AuditWriter audit, CancellationToken ct) =>
         {
             var p = new Party { TenantId = tenant.Require(), CreatedByUserId = user.UserId };
+            // Kodlar sirket on eki tasir (ADR-012 2.8): UUS-C000001; elle verilen kod da on ek alir.
+            var companyCode = await tenant.RequireCodeAsync(db, ct);
             p.Code = string.IsNullOrWhiteSpace(input.Code)
-                ? await PartyService.NextCodeAsync(db, "C", ct)
-                : input.Code.Trim().ToUpperInvariant();
+                ? await PartyService.NextCodeAsync(db, companyCode + "-C", ct)
+                : Companies.CompanyCodes.WithPrefix(companyCode, input.Code);
             PartyService.Apply(p, input);
             db.Parties.Add(p);
             audit.Add("party.create", "party", p.Id, new { p.Code, kind = p.Kind.ToString() });
@@ -103,10 +105,11 @@ public static class PartyEndpoints
             return Results.Ok(new { p.Id, p.Code });
         });
 
-        g.MapPut("/{id:guid}", async (Guid id, PartyInput input, AppDbContext db, AuditWriter audit, CancellationToken ct) =>
+        g.MapPut("/{id:guid}", async (Guid id, PartyInput input, AppDbContext db, TenantContext tenant, AuditWriter audit, CancellationToken ct) =>
         {
             var p = await db.Parties.SingleOrDefaultAsync(x => x.Id == id, ct) ?? throw new NotFoundException("Cari");
-            if (!string.IsNullOrWhiteSpace(input.Code)) p.Code = input.Code.Trim().ToUpperInvariant();
+            if (!string.IsNullOrWhiteSpace(input.Code))
+                p.Code = Companies.CompanyCodes.WithPrefix(await tenant.RequireCodeAsync(db, ct), input.Code);
             PartyService.Apply(p, input);
             audit.Add("party.update", "party", p.Id, new { p.Code, kind = p.Kind.ToString(), p.IsActive });
             await db.SaveChangesAsync(ct);
