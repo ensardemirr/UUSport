@@ -293,6 +293,8 @@ Uygulama geri donusu ile veritabani geri donusu ayri islemdir.
   Zamanlayici kaydi. **Bilerek otomatik calistirilmadi**: once yurt ici uzak/harici
   yedek konumu (`-OffsiteDir`) ve parolanin sunucu disinda nerede saklanacagi karara
   baglanmali.
+- 17 Ekim 2026: `backup.ps1` + `restore-test.ps1` gelistirme makinesinde (`uusport`, gecici parola) basariyla
+  calistirildi; zamanlanmis gorev hala kurulmadi (uzak konum ve parola saklama karari bekliyor).
 - WAL arsivleme (PITR) bu betiklerin kapsami disinda; `postgresql.conf` uzerinde
   `archive_mode=on` + `archive_command` ile ayrica yapilandirilmalidir (canliya alma
   oncesi, bolum 7).

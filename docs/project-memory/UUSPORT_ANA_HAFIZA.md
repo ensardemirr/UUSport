@@ -1,6 +1,6 @@
 # UU Sport Ana Hafiza
 
-**Surum:** 3.5  
+**Surum:** 3.6  
 **Olusturma tarihi:** 23 Eylul 2026  
 **Son guncelleme:** 17 Ekim 2026  
 **Ilk yazar:** Codex  
@@ -59,6 +59,11 @@ anahtari veya gercek ogrenci/veli verisi icermez.
   donem kilidi), yedek (S-10) ve gercek geri yukleme provasi bu tarihten once bitmeli;
   kuru prova ve acilis bakiyesi mutabakati (S-36) paralel calismanin yerini tutan tek
   guvence olur. Takvim gercekci degilse karar yeniden gozden gecirilmelidir.
+- `[DOGRU]` 17 Ekim 2026: yedek betikleri (`scripts/backup.ps1`, `restore-test.ps1`, `protect-backup-key.ps1`,
+  `install-scheduled-tasks.ps1`, S-10) bu makinede **calistirilip dogrulandi**: gecici parolayla sifreli yedek
+  alindi, gecici veritabanina geri yuklendi (4 migration, 1 kullanici), gecici veritabani silindi; deneme yedegi
+  parolasi atildigi icin dosya silindi. **Zamanlanmis gorev kurulmadi.** `[ACIK]` Uzak yedek konumu
+  (`-OffsiteDir`) ve yedek parolasinin saklanacagi yer karari bekliyor; WAL/PITR ve belge klasoru yedegi yapilmadi.
 - `[KARAR]` Gunluk guncel ogrenci aktariminin tek kaynagi Excel'deki `Sayfa1 (2)`
   sayfasidir. Benzer isimli sayfalar otomatik birlestirilmeyecek.
 - `[KARAR]` Gercek cocuk, sporcu ve veli verisi gelistirme/test ortamlarina veya
@@ -665,6 +670,7 @@ Ayrintili standart:
    M1 kalani: S-16 (gercek Excel'in proje disina tasinmasi, kullanici eylemi), S-18
    (Windows servisi + release paketleme), S-11 kalani (HTTPS sertifikasi, guvenlik
    duvari, BitLocker), yedek zamanlanmis gorevinin kurulmasi. Sonra M2 (S-20..S-27).
+   Yedek (S-10): betikler hazir ve dogrulandi, gorev kurulumu uzak konum/parola kararina bagli (bolum 0).
    Kullanici kararlari KU-1..KU-7: 17.10.2026'da yanitlandi (bolum 0); KU-5 ve KU-6'nin
    bir kismi bekliyor.
    `[KARAR]` **M1.5 coklu sirket** (ADR-012, 17.10.2026) M2'den once yapilir: migration
@@ -710,6 +716,7 @@ Ayrintili standart:
 
 | Tarih | Surum | Yazan | Degisiklik |
 |---|---:|---|---|
+| 17.10.2026 | 3.6 | Claude Code | S-10 yedek betikleri `scripts/` altinda mevcut ve bu makinede calistirilarak dogrulandi (yedek + geri yukleme provasi basarili); zamanlanmis gorev kurulmadi, uzak konum ve parola saklama karari acik. Onceki "yedek betigi yok" tespiti (yalniz `tools/` incelenmisti) yanlisti, duzeltildi. |
 | 17.10.2026 | 3.5 | Claude Code | `[KULLANICI KARARI]` KU-1..KU-7 yanitlari islendi (bolum 0); KU-5 acik. Canli hedef Kasim 2026, paralel calisma yok (risk notu eklendi). Bayat satirlar duzeltildi (son commit, test sayisi 82, "kod yazilmadi"). CLAUDE.md'deki 25 Eylul "ara" paragrafi kullanici onayiyla kaldirildi. Sentezde ADR-012 numara cakismasi giderildi (SaaS kapilari -> ADR-018). |
 | 17.10.2026 | 3.4 | Claude Code | **M1.5 madde 3:** liste satirlarina sirket kodu (`company`) ve rapor/pano `totalsByCompany` kirilimi eklendi; daily-collections birlesik gorunumde sirket bazinda ayri satir. 82 test yesil. Ayrinti: devir notu 2.7. |
 | 17.10.2026 | 3.3 | Claude Code | **M1.5 MultiCompanyTests yazildi** (`tests/UUSport.Tests/MultiCompanyTests.cs`, 9 test; toplam 81 test, `tools/build-uusport.ps1` yesil). Testler iki **gercek hata** yakaladi ve duzeltildi: denetim kaydi (`audit.audit_event`, RLS tekil yazma sirketi) baska sirketin kimligiyle yazilinca 500 veriyordu; bu yuzden ev sirketi ilk sirket (UUS) olmayan kullanici giris yapamiyor, grup yoneticisi baska sirkette uyelik veremiyordu. Cozum: `AuditSaveExtensions.SaveChangesAcrossCompaniesAsync` (ayni transaction'da yazma baglamini hedef sirkete cevirir; is kaydi ve denetim birlikte kalir); `UserEndpoints` ve `AuthEndpoints` (LogAuthAsync, MFA) kullanir. `EndpointAuthorizationTests` ile `MultiCompanyTests` ortam degiskeni/kurulum belirteci paylastigi icin `WebHost` koleksiyonunda seri kosar. Ayrinti: devir notu bolum 2.6. |
