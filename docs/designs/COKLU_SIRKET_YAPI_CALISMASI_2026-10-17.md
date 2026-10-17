@@ -1,6 +1,6 @@
 # UU Sport - Coklu Sirket (Birden Fazla Vergi Kimlik Numarasi) Yapi Calismasi
 
-**Durum:** `[ONERI]` - kullanici karari bekliyor; kod degisikligi yok  
+**Durum:** `[KARAR]` Secenek A ve KU-8..KU-15 kullanici tarafindan 17.10.2026'da yanitlandi; karar `docs/decisions/ADR-012_COKLU_SIRKET_VE_KIRACI_MODELI.md`; kod degisikligi yok  
 **Tarih:** 17 Ekim 2026  
 **Yazan:** Claude Code  
 **Ilgili:** ADR-012 adayi (kiraci cozumleme), guvenlik standardi bolum 3-4, PostgreSQL standardi bolum 7, danisma sentezi M2-M4
@@ -253,6 +253,14 @@ Toplam 6-7 ajan gunu. M1 kalanlari (yedek gorevi, S-18 paketleme) bundan bagimsi
 ve paralel yurutulebilir.
 
 ## 6. Kullanici karari bekleyen sorular
+
+`[KULLANICI KARARI]` 17.10.2026 yanitlari (ayrintili islenisi ADR-012):
+KU-8 onay; KU-9 UUSPORT / FITNESS / TIYATRO; KU-10 Ortak gorunurlugu parametrik,
+yonetici acip kapatir; KU-11 evet, borc/fatura/tahsilat var; KU-12 evet, ayri cari,
+tek tahsilat ve fazlanin diger sirkete aktarimi; KU-13 musavirler ayri, birlesebilir,
+formatlar farkli olabilir; KU-14 Faz 2; KU-15 on ek istenir, tedarikci urun kodu
+uyumsuzlugu riski belirtildi (cozum: tedarikci kodu esleme tablosu).
+
 
 - **KU-8** Secenek A (sirket = kiraci, tek kurulum, tek veritabani) onaylaniyor mu?
 - **KU-9** Sirket listesi: uc sirketin kisa adi ve hangi sektorde oldugu (VKN ve unvan

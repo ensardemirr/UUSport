@@ -1,10 +1,10 @@
 # UU Sport Ana Hafiza
 
-**Surum:** 3.0  
+**Surum:** 3.1  
 **Olusturma tarihi:** 23 Eylul 2026  
 **Son guncelleme:** 17 Ekim 2026  
 **Ilk yazar:** Codex  
-**Durum:** Surum 0.1 gelistirme ortaminda calisiyor; M0 tamamlandi, M1 buyuk olcude tamamlandi (kalanlar bolum 11). Siradaki: M1 kalanlari ve M2. Canli kurulum yok.
+**Durum:** Surum 0.1 gelistirme ortaminda calisiyor; M0 tamamlandi, M1 buyuk olcude tamamlandi (kalanlar bolum 11). Siradaki: M1 kalanlari, **M1.5 coklu sirket (ADR-012, onayli)** ve M2. Canli kurulum yok.
 
 Bu dosya UU Sport / PSG Academy Samsun projesinin tek guncel proje hafizasidir.
 Claude Code ve Codex her calismanin basinda bu dosyayi okur. Dosya parola, API
@@ -30,12 +30,17 @@ anahtari veya gercek ogrenci/veli verisi icermez.
   M1 (guvenli isletim temeli) buyuk olcude tamamlandi; 4 migration, 72 test geciyor
   (son kayit). Ayrinti: degisiklik gecmisi 2.7 ve 2.8, plan:
   `docs/reviews/UUSPORT_DANISMA_SENTEZ_2026-09-27.md`.
-- `[ONERI]` 17 Ekim 2026: kullanici **uc ayri vergi kimlik numarali sirketi** ayni
-  programdan yonetmek istedi (patron hepsini gorur, muhasebeciler sirket basina, ortak
-  yalniz kendi sirketini; birlesik ve secili sirket gorunumu; sirket bazli simulasyon;
-  yetki matrisi). Yapi calismasi ve KU-8..KU-15 sorulari:
-  `docs/designs/COKLU_SIRKET_YAPI_CALISMASI_2026-10-17.md`. Oneri: "sirket = kiraci"
-  (Secenek A), M2'den once "M1.5" olarak, ADR-012 ile birlikte. Henuz karar degil.
+- `[KARAR]` 17 Ekim 2026, **ADR-012 coklu sirket**: uc vergi kimlik numarali sirket
+  (**UUSPORT / FITNESS / TIYATRO**, kodlar `UUS/FIT/TIY`) ayni kurulumda; **sirket = kiraci**
+  (`core.tenant`), sirket basina rol (`identity.company_membership`: Yonetici, Muhasebe,
+  yeni **Ortak**; Hoca/Supervisor Faz 2), patron `is_group_admin`. RLS: okuma secili
+  sirket kumesi (`app.tenant_ids`), **yazma tek sirket** (`app.tenant_id`). Ortak'in
+  gorunurlugu yetki anahtarlariyla parametrik. Grup ici islem (borc, fatura, tahsilat)
+  karsi sirkette onay kuyruguyla yazilir ve baglanir; ayni veli her sirkette ayri cari,
+  fazla tahsilat `approved_adjustment` ile diger sirkete aktarilir. Kodlarda sirket on eki
+  + tedarikci urun kodu esleme tablosu. Musavir/aktarim profili sirket basina. M2'den once
+  **M1.5** olarak uygulanacak. ADR: `docs/decisions/ADR-012_COKLU_SIRKET_VE_KIRACI_MODELI.md`;
+  calisma: `docs/designs/COKLU_SIRKET_YAPI_CALISMASI_2026-10-17.md`. Kod henuz yazilmadi.
 - `[KARAR]` Gunluk guncel ogrenci aktariminin tek kaynagi Excel'deki `Sayfa1 (2)`
   sayfasidir. Benzer isimli sayfalar otomatik birlestirilmeyecek.
 - `[KARAR]` Gercek cocuk, sporcu ve veli verisi gelistirme/test ortamlarina veya
@@ -494,7 +499,7 @@ C:\UUSport
 |-- database/              # bos; migration'lar API projesinde (EF Core)
 |-- deployment/            # test/canli dagitim tanimlari; su an bos
 |-- docs/
-|   |-- decisions/         # ADR-001..005 (onayli)
+|   |-- decisions/         # ADR-001..005, ADR-012 (onayli)
 |   |-- designs/           # ekran, akis ve tasarim notlari, mockup
 |   |-- operations/        # veri kabul, release, canliya alma, yedek ve geri donus
 |   |-- project-memory/
@@ -643,8 +648,10 @@ Ayrintili standart:
    (Windows servisi + release paketleme), S-11 kalani (HTTPS sertifikasi, guvenlik
    duvari, BitLocker), yedek zamanlanmis gorevinin kurulmasi. Sonra M2 (S-20..S-27).
    Kullanici kararlari KU-1..KU-7 bekliyor (sentez bolum 6).
-   `[ONERI]` Coklu sirket yapisi (KU-8..KU-15) onaylanirsa M2'den once "M1.5" olarak
-   girer: `docs/designs/COKLU_SIRKET_YAPI_CALISMASI_2026-10-17.md`.
+   `[KARAR]` **M1.5 coklu sirket** (ADR-012, 17.10.2026) M2'den once yapilir: migration
+   (tenant kolonlari, uyelik, grup ici baglanti, tedarikci kodu, RLS v2), sirket baglami
+   ara katmani, uyelik/yetki uclari ve ekranlari, sirket secici, raporlarda sirket boyutu,
+   capraz sirket testleri. Tahmini 7-9 ajan gunu; M1 kalanlariyla paralel yurutulebilir.
 5. `[KULLANICI KARARI]` 26.09.2026: **yedekleme erken alinacak**, sona birakilmayacak.
    PostgreSQL gelistirme kumesi icin gunluk tam yedek + gercek geri yukleme provasi
    (operasyon proseduru bolum 10) gercek veri gelmeden, sentetik veriyle simdi
@@ -684,6 +691,7 @@ Ayrintili standart:
 
 | Tarih | Surum | Yazan | Degisiklik |
 |---|---:|---|---|
+| 17.10.2026 | 3.1 | Claude Code | `[KULLANICI KARARI]` Coklu sirket Secenek A onaylandi, KU-8..KU-15 yanitlandi; **ADR-012** yazildi (`docs/decisions/ADR-012_COKLU_SIRKET_VE_KIRACI_MODELI.md`): sirketler UUSPORT/FITNESS/TIYATRO; sirket = kiraci; sirket basina rol + Ortak rolu parametrik gorunurluk; birlesik okuma / tekil yazma RLS; grup ici islemler onay kuyrugu ve `intercompany_link`; ayni veli ayri cari, fazla tahsilat `approved_adjustment` ile aktarim; musavir aktarim profili sirket basina; kodlarda `UUS-/FIT-/TIY-` on eki ve `supplier_item_code` esleme tablosu. Yol haritasina M1.5 eklendi. Kod degisikligi yok. |
 | 17.10.2026 | 3.0 | Claude Code | Kullanici istegiyle coklu sirket (uc VKN) yapi calismasi yazildi: `docs/designs/COKLU_SIRKET_YAPI_CALISMASI_2026-10-17.md`. Mevcut kod incelendi (tek kiraci, RLS tum tablolarda, kullanici basina tek rol, capraz kiraci testi yok). Uc secenek degerlendirildi; `[ONERI]` Secenek A: sirket = kiraci, `identity.company_membership` ile sirket basina rol, okuma icin `app.tenant_ids` (ANY) ve yazma icin tekil `app.tenant_id` RLS politikasi, ust cubukta sirket secici, birlesik modda yazma kapali, raporlarda sirket boyutu, yeni "Ortak" rolu, yetki anahtarlari ile tek matris. M2'den once "M1.5" onerildi; KU-8..KU-15 sorulari acildi. Kod degisikligi yok. |
 | 16.10.2026 | 2.9 | Claude Code | Eskimis ifadeler duzeltildi: durum satiri ve hizli durum M0/M1 ilerlemesiyle guncellendi; uzak depo (GitHub) ve son commit kaydedildi; 25.09 denetim arasi tarihsel olarak isaretlendi; test sayisi 31 -> 72; yedek betiklerinin varligi bilinen sinirlara islendi; migration araci `[ACIK]` -> `[DOGRU]` EF Core (4 migration); ADR-002/003'un standarda islendigi dogrulandi; siradaki calisma sirasi M1 kalanlari ve M2 ile guncellendi. Kod degisikligi yok. |
 | 27.09.2026 | 2.8 | Claude Code | `[KULLANICI KARARI]` M1'e gecildi (Sonnet 5, orta efor). **S-12** kurulum ucu tek kullanimlik jetonla kilitlendi (`SetupTokenService`, sunucu logunda bir kez gorunur). **S-13** giris/cikis/kilit/MFA basari-basarisiz olaylari IP ile denetim kaydina yaziliyor (`AuditEvent.IpAddress`, yeni sutun). **S-14** `EndpointAuthorizationTests`: calisan uygulamada `EndpointDataSource`'tan TUM `/api` uclarini kesfedip oturumsuz istekte 401, Muhasebe rolunde yonetici-ozel uclarda 403 dogrular; elle bir admin-only korumasi silinerek testin gercekten kirmizi oldugu gosterildi (append-only testiyle ayni disiplin). **S-15** MFA sertlestirme: TOTP anahtari/kurtarma kodlari artik Data Protection ile sifreli saklaniyor (eski duz metin de okunabilir kalir, sonraki yazimda sifrelenir); kurtarma kodlari (10 adet) MFA acilinca gosteriliyor, giriste kurtarma kodu secenegi var; sunucu CLI'sinda `reset-mfa --user=` acil durum sifirlamasi (yalniz makine erisimi olanlar); oturum hareketsizlik zaman asimi 8 saatten 30 dakikaya cekildi (kaydirmali); tek yonetici uyarisi (`/api/auth/me.onlyAdmin`, arayuzde banner); anonim `/api/health` artik surum/migration bilgisi vermiyor. **S-19** Excel aktariminda telefon yoksa/eslesmezse artik SADECE isme bakarak mevcut cariye otomatik birlesme YAPILMAZ (X:DATA-01, iki test ile kanitlandi); zip bomb korumasi (sikistirilmamis boyut sinirlanir, acmadan once kontrol edilir). **S-11** kismi: HSTS eklendi (duz HTTP'de zararsiz, HTTPS acilinca aktif). **S-17** `scripts/ci.ps1` uygulandi ve calistirildi: derleme (uyari=hata), tum testler, gizli bilgi taramasi, gercek veri taramasi, NuGet/npm acik taramasi; `-Fast` bayragi + `scripts/install-git-hooks.ps1` (commit-oncesi, elle kurulur). **S-10** `scripts/backup.ps1` + `scripts/restore-test.ps1` yazildi VE uctan uca calistirilarak dogrulandi (dogru parolada basarili, yanlis parolada temiz basarisizlik): parola tabanli AES-256 (DPAPI DEGIL - felaket kurtarma icin sunucudan bagimsiz olmali), `postgres` superuser ile (uusport_owner FORCE RLS altinda kendi verisini bile goremez). Zamanlanmis gorev kurulumu (`install-scheduled-tasks.ps1`) YAZILDI ama calistirilmadi - yurt ici yedek konumu ve parola saklama karari kullanicidan bekliyor. 72 test geciyor. **Ertelenen (henuz baslanmadi):** S-16 (gercek Excel dosyasinin proje disina tasinmasi - kullanici eylemi), S-18 (Windows servisi + release paketleme betikleri), S-11'in kalani (fiziksel HTTPS sertifikasi, guvenlik duvari, BitLocker - sunucu donanimi belli olunca). |
