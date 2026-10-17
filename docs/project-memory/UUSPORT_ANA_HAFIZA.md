@@ -1,8 +1,8 @@
 # UU Sport Ana Hafiza
 
-**Surum:** 2.9  
+**Surum:** 3.0  
 **Olusturma tarihi:** 23 Eylul 2026  
-**Son guncelleme:** 16 Ekim 2026  
+**Son guncelleme:** 17 Ekim 2026  
 **Ilk yazar:** Codex  
 **Durum:** Surum 0.1 gelistirme ortaminda calisiyor; M0 tamamlandi, M1 buyuk olcude tamamlandi (kalanlar bolum 11). Siradaki: M1 kalanlari ve M2. Canli kurulum yok.
 
@@ -30,6 +30,12 @@ anahtari veya gercek ogrenci/veli verisi icermez.
   M1 (guvenli isletim temeli) buyuk olcude tamamlandi; 4 migration, 72 test geciyor
   (son kayit). Ayrinti: degisiklik gecmisi 2.7 ve 2.8, plan:
   `docs/reviews/UUSPORT_DANISMA_SENTEZ_2026-09-27.md`.
+- `[ONERI]` 17 Ekim 2026: kullanici **uc ayri vergi kimlik numarali sirketi** ayni
+  programdan yonetmek istedi (patron hepsini gorur, muhasebeciler sirket basina, ortak
+  yalniz kendi sirketini; birlesik ve secili sirket gorunumu; sirket bazli simulasyon;
+  yetki matrisi). Yapi calismasi ve KU-8..KU-15 sorulari:
+  `docs/designs/COKLU_SIRKET_YAPI_CALISMASI_2026-10-17.md`. Oneri: "sirket = kiraci"
+  (Secenek A), M2'den once "M1.5" olarak, ADR-012 ile birlikte. Henuz karar degil.
 - `[KARAR]` Gunluk guncel ogrenci aktariminin tek kaynagi Excel'deki `Sayfa1 (2)`
   sayfasidir. Benzer isimli sayfalar otomatik birlestirilmeyecek.
 - `[KARAR]` Gercek cocuk, sporcu ve veli verisi gelistirme/test ortamlarina veya
@@ -637,6 +643,8 @@ Ayrintili standart:
    (Windows servisi + release paketleme), S-11 kalani (HTTPS sertifikasi, guvenlik
    duvari, BitLocker), yedek zamanlanmis gorevinin kurulmasi. Sonra M2 (S-20..S-27).
    Kullanici kararlari KU-1..KU-7 bekliyor (sentez bolum 6).
+   `[ONERI]` Coklu sirket yapisi (KU-8..KU-15) onaylanirsa M2'den once "M1.5" olarak
+   girer: `docs/designs/COKLU_SIRKET_YAPI_CALISMASI_2026-10-17.md`.
 5. `[KULLANICI KARARI]` 26.09.2026: **yedekleme erken alinacak**, sona birakilmayacak.
    PostgreSQL gelistirme kumesi icin gunluk tam yedek + gercek geri yukleme provasi
    (operasyon proseduru bolum 10) gercek veri gelmeden, sentetik veriyle simdi
@@ -676,6 +684,7 @@ Ayrintili standart:
 
 | Tarih | Surum | Yazan | Degisiklik |
 |---|---:|---|---|
+| 17.10.2026 | 3.0 | Claude Code | Kullanici istegiyle coklu sirket (uc VKN) yapi calismasi yazildi: `docs/designs/COKLU_SIRKET_YAPI_CALISMASI_2026-10-17.md`. Mevcut kod incelendi (tek kiraci, RLS tum tablolarda, kullanici basina tek rol, capraz kiraci testi yok). Uc secenek degerlendirildi; `[ONERI]` Secenek A: sirket = kiraci, `identity.company_membership` ile sirket basina rol, okuma icin `app.tenant_ids` (ANY) ve yazma icin tekil `app.tenant_id` RLS politikasi, ust cubukta sirket secici, birlesik modda yazma kapali, raporlarda sirket boyutu, yeni "Ortak" rolu, yetki anahtarlari ile tek matris. M2'den once "M1.5" onerildi; KU-8..KU-15 sorulari acildi. Kod degisikligi yok. |
 | 16.10.2026 | 2.9 | Claude Code | Eskimis ifadeler duzeltildi: durum satiri ve hizli durum M0/M1 ilerlemesiyle guncellendi; uzak depo (GitHub) ve son commit kaydedildi; 25.09 denetim arasi tarihsel olarak isaretlendi; test sayisi 31 -> 72; yedek betiklerinin varligi bilinen sinirlara islendi; migration araci `[ACIK]` -> `[DOGRU]` EF Core (4 migration); ADR-002/003'un standarda islendigi dogrulandi; siradaki calisma sirasi M1 kalanlari ve M2 ile guncellendi. Kod degisikligi yok. |
 | 27.09.2026 | 2.8 | Claude Code | `[KULLANICI KARARI]` M1'e gecildi (Sonnet 5, orta efor). **S-12** kurulum ucu tek kullanimlik jetonla kilitlendi (`SetupTokenService`, sunucu logunda bir kez gorunur). **S-13** giris/cikis/kilit/MFA basari-basarisiz olaylari IP ile denetim kaydina yaziliyor (`AuditEvent.IpAddress`, yeni sutun). **S-14** `EndpointAuthorizationTests`: calisan uygulamada `EndpointDataSource`'tan TUM `/api` uclarini kesfedip oturumsuz istekte 401, Muhasebe rolunde yonetici-ozel uclarda 403 dogrular; elle bir admin-only korumasi silinerek testin gercekten kirmizi oldugu gosterildi (append-only testiyle ayni disiplin). **S-15** MFA sertlestirme: TOTP anahtari/kurtarma kodlari artik Data Protection ile sifreli saklaniyor (eski duz metin de okunabilir kalir, sonraki yazimda sifrelenir); kurtarma kodlari (10 adet) MFA acilinca gosteriliyor, giriste kurtarma kodu secenegi var; sunucu CLI'sinda `reset-mfa --user=` acil durum sifirlamasi (yalniz makine erisimi olanlar); oturum hareketsizlik zaman asimi 8 saatten 30 dakikaya cekildi (kaydirmali); tek yonetici uyarisi (`/api/auth/me.onlyAdmin`, arayuzde banner); anonim `/api/health` artik surum/migration bilgisi vermiyor. **S-19** Excel aktariminda telefon yoksa/eslesmezse artik SADECE isme bakarak mevcut cariye otomatik birlesme YAPILMAZ (X:DATA-01, iki test ile kanitlandi); zip bomb korumasi (sikistirilmamis boyut sinirlanir, acmadan once kontrol edilir). **S-11** kismi: HSTS eklendi (duz HTTP'de zararsiz, HTTPS acilinca aktif). **S-17** `scripts/ci.ps1` uygulandi ve calistirildi: derleme (uyari=hata), tum testler, gizli bilgi taramasi, gercek veri taramasi, NuGet/npm acik taramasi; `-Fast` bayragi + `scripts/install-git-hooks.ps1` (commit-oncesi, elle kurulur). **S-10** `scripts/backup.ps1` + `scripts/restore-test.ps1` yazildi VE uctan uca calistirilarak dogrulandi (dogru parolada basarili, yanlis parolada temiz basarisizlik): parola tabanli AES-256 (DPAPI DEGIL - felaket kurtarma icin sunucudan bagimsiz olmali), `postgres` superuser ile (uusport_owner FORCE RLS altinda kendi verisini bile goremez). Zamanlanmis gorev kurulumu (`install-scheduled-tasks.ps1`) YAZILDI ama calistirilmadi - yurt ici yedek konumu ve parola saklama karari kullanicidan bekliyor. 72 test geciyor. **Ertelenen (henuz baslanmadi):** S-16 (gercek Excel dosyasinin proje disina tasinmasi - kullanici eylemi), S-18 (Windows servisi + release paketleme betikleri), S-11'in kalani (fiziksel HTTPS sertifikasi, guvenlik duvari, BitLocker - sunucu donanimi belli olunca). |
 | 27.09.2026 | 2.7 | Claude Code | `[KULLANICI KARARI]` Sentez plani onaylandi, M0'dan baslandi; "Resmi Cari" dugmesi **"Muhasebe Gorunumu"** oldu, "Gayri resmi" metni kaldirildi ("Belgelendi / Belge bekliyor"); gelistirme veritabanindaki deneme kayitlari kullanici beyaniyla tamamen uydurma. **M0 tamamlandi (S-01..S-08):** `20260927143530_FixAppendOnlyGrants` migration'i append-only yetki hatasini onardi (uusport, uusport_test uygulandi); `SchemaGuardTests` her kosuda sifir veritabani kurup RLS/FORCE/politika ve append-only yetkilerini katalogdan dogrular (duzeltme kapaliyken kirmizi oldugu gosterildi); finansal komutlar tek transaction + `FOR UPDATE` kilidiyle (kilitsizken es zamanli testler 3/3 kirmizi, kilitle yesil); iade sonrasi acik tutar net tutardan, fazla dagitim avansa doner; iptal edilen odemeye bagli kredi taksiti yeniden acilir; kredi/cek gerceklesme tarihi vade degil islem tarihi; yon–arac–hesap matrisi (musteri kart tahsilati yalniz POS); tahsil edilmis ceke bagli tahsilat genel iptalle geri alinamaz; koyu+yuksek kontrast duzeltildi; arayuzden gelistirici dili kaldirildi; muhasebe gorunumunde tutarsiz yuruyen bakiye gizlendi (kalici cozum M2/S-21); surum degisince "Yenile" bandi (`X-App-Build`, `wwwroot/version.json`). 69 test geciyor; ekran goruntusu ve PDF ile dogrulandi. Siradaki: M1 (yedek, HTTPS, kurulum jetonu, giris denetimi, CI...). |
