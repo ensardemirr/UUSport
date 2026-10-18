@@ -381,7 +381,7 @@ export function CashPage() {
   const { isAdmin, canWrite, consolidated } = useAuth()
   const toast = useToast()
   const { data, error, reload } = useAsync(() => api<CashAccount[]>('/api/cash-accounts'), [])
-  const [form, setForm] = useState({ name: '', kind: 'bank', parentAccountId: '' })
+  const [form, setForm] = useState({ name: '', kind: 'bank', parentAccountId: '', paymentDueDay: '' })
   const [formError, setFormError] = useState<string | null>(null)
 
   const banks = (data ?? []).filter((a) => a.kind === 'bank')
@@ -412,7 +412,7 @@ export function CashPage() {
                   <td style={{ paddingLeft: a.parentAccountId ? 28 : undefined }}>
                     {a.parentAccountId ? '↳ ' : ''}{a.name}{!a.isActive ? <span className="sub">kullanım dışı</span> : null}
                   </td>
-                  <td>{cashKindName[a.kind] ?? a.kind}</td>
+                  <td>{cashKindName[a.kind] ?? a.kind}{a.kind === 'credit_card' && a.paymentDueDay ? <span className="sub">son ödeme: ayın {a.paymentDueDay}'i</span> : null}</td>
                   <td className="num">{money(a.balance)}</td>
                 </tr>
               ))}</tbody>
@@ -432,6 +432,11 @@ export function CashPage() {
                   <option value="loan">Kredi (bir bankanın altında)</option>
                 </select>
               </Field>
+              {form.kind === 'credit_card' ? (
+                <Field label="Son ödeme günü" hint="ekstre son ödeme günü; nakit akışı kart borcunu bu güne yazar">
+                  <input className="input" inputMode="numeric" value={form.paymentDueDay} onChange={(e) => setForm({ ...form, paymentDueDay: e.target.value })} placeholder="ör. 15" />
+                </Field>
+              ) : null}
               {needsParent ? (
                 <Field label="Hangi banka hesabının altında">
                   <select className="input" value={form.parentAccountId} onChange={(e) => setForm({ ...form, parentAccountId: e.target.value })}>
@@ -444,8 +449,9 @@ export function CashPage() {
                 setFormError(null)
                 if (needsParent && !form.parentAccountId) { setFormError('Üst banka hesabı seçilmeli.'); return }
                 try {
-                  await post('/api/cash-accounts', { name: form.name, kind: form.kind, parentAccountId: needsParent ? form.parentAccountId : null })
-                  setForm({ name: '', kind: 'bank', parentAccountId: '' }); toast('Hesap eklendi.'); reload()
+                  await post('/api/cash-accounts', { name: form.name, kind: form.kind, parentAccountId: needsParent ? form.parentAccountId : null,
+                    paymentDueDay: form.kind === 'credit_card' && form.paymentDueDay ? Number(form.paymentDueDay) : null })
+                  setForm({ name: '', kind: 'bank', parentAccountId: '', paymentDueDay: '' }); toast('Hesap eklendi.'); reload()
                 } catch (e) { setFormError(errorText(e)) }
               }}>Hesabı Ekle</button>
             </div>

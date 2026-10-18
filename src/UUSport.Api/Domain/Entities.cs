@@ -247,6 +247,31 @@ public sealed class CashAccount : TenantEntity
     /// <summary>Yalniz CreditCard/Loan icin dolu; bir Bank hesabini gosterir (kural: uygulama katmaninda).</summary>
     public Guid? ParentAccountId { get; set; }
     public bool IsActive { get; set; } = true;
+    /// <summary>Kredi karti ekstresinin son odeme gunu (1-31). Nakit akisi tahmini kart borcunu bu gune yazar.</summary>
+    public short? PaymentDueDay { get; set; }
+}
+
+public enum PlannedCashKind { Salary, Sgk, Rent, Vat, WithholdingTax, ProvisionalTax, OtherTax, OtherExpense, OtherIncome }
+
+/// <summary>
+/// Planli nakit kalemi (nakit akisi tahmini, M4 on calismasi): sistemde belgesi olmayan duzenli odeme/tahsilat
+/// varsayimi (maas, SGK, kira, vergi, aidat beklentisi). Cariye, kasaya veya deftere hicbir sey yazmaz; yalniz
+/// tahmin icindir. Her sirketin kendi kalemleri vardir (RLS).
+/// </summary>
+public sealed class PlannedCashItem : TenantEntity
+{
+    public PlannedCashKind Kind { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public decimal Amount { get; set; }
+    /// <summary>Odeme/tahsilat gunu (1-28); ay sonu kaymasi olmasin diye 28 ile sinirli.</summary>
+    public short DayOfMonth { get; set; } = 1;
+    /// <summary>1 aylik, 3 ceyreklik (gecici vergi), 12 yillik.</summary>
+    public short IntervalMonths { get; set; } = 1;
+    /// <summary>Ilk gerceklesecegi ayin ilk gunu.</summary>
+    public DateOnly StartMonth { get; set; }
+    /// <summary>Son ay (dahil); bos ise suresiz.</summary>
+    public DateOnly? EndMonth { get; set; }
+    public bool IsActive { get; set; } = true;
 }
 
 public enum PaymentDirection { Receipt, Disbursement }

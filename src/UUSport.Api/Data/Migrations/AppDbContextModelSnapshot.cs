@@ -484,6 +484,10 @@ namespace UUSport.Api.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("parent_account_id");
 
+                    b.Property<short?>("PaymentDueDay")
+                        .HasColumnType("smallint")
+                        .HasColumnName("payment_due_day");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid")
                         .HasColumnName("tenant_id");
@@ -497,7 +501,10 @@ namespace UUSport.Api.Data.Migrations
                     b.HasIndex("TenantId")
                         .HasDatabaseName("ix_cash_account_tenant_id");
 
-                    b.ToTable("cash_account", "finance");
+                    b.ToTable("cash_account", "finance", t =>
+                        {
+                            t.HasCheckConstraint("ck_cash_account__payment_due_day", "payment_due_day IS NULL OR payment_due_day BETWEEN 1 AND 31");
+                        });
                 });
 
             modelBuilder.Entity("UUSport.Api.Domain.Check", b =>
@@ -1640,6 +1647,79 @@ namespace UUSport.Api.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("UUSport.Api.Domain.PlannedCashItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<short>("DayOfMonth")
+                        .HasColumnType("smallint")
+                        .HasColumnName("day_of_month");
+
+                    b.Property<DateOnly?>("EndMonth")
+                        .HasColumnType("date")
+                        .HasColumnName("end_month");
+
+                    b.Property<short>("IntervalMonths")
+                        .HasColumnType("smallint")
+                        .HasColumnName("interval_months");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("name");
+
+                    b.Property<DateOnly>("StartMonth")
+                        .HasColumnType("date")
+                        .HasColumnName("start_month");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_planned_cash_item");
+
+                    b.HasIndex("TenantId", "IsActive")
+                        .HasDatabaseName("ix_planned_cash_item__tenant_active");
+
+                    b.ToTable("planned_cash_item", "finance", t =>
+                        {
+                            t.HasCheckConstraint("ck_planned_cash_item__amount_positive", "amount > 0");
+
+                            t.HasCheckConstraint("ck_planned_cash_item__day_range", "day_of_month BETWEEN 1 AND 28");
+
+                            t.HasCheckConstraint("ck_planned_cash_item__interval_allowed", "interval_months IN (1, 2, 3, 6, 12)");
+
+                            t.HasCheckConstraint("ck_planned_cash_item__month_order", "end_month IS NULL OR end_month >= start_month");
+                        });
+                });
+
             modelBuilder.Entity("UUSport.Api.Domain.StockMovement", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2329,6 +2409,16 @@ namespace UUSport.Api.Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_payment_allocation_trade_line_trade_line_id");
+                });
+
+            modelBuilder.Entity("UUSport.Api.Domain.PlannedCashItem", b =>
+                {
+                    b.HasOne("UUSport.Api.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_planned_cash_item_tenant_tenant_id");
                 });
 
             modelBuilder.Entity("UUSport.Api.Domain.StockMovement", b =>

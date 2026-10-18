@@ -481,28 +481,38 @@ public sealed class MultiCompanyTests(MultiCompanyFixture w) : IClassFixture<Mul
     }
 
     [Fact]
-    public async Task NakitAkisi_SirketBazindaVeToplu_VarsayimYalnizToplamda()
+    public async Task NakitAkisi_PlanliKalemSirketeOzel_TopluToplamaGirer()
     {
-        var resp = await MultiCompanyFixture.SendAll(w.Patron, "GET", "/api/reports/cash-forecast?months=3&monthlyExpense=50");
-        var f = await MultiCompanyFixture.Json(MultiCompanyFixture.Ok(resp));
-        var companies = f.GetProperty("companies").EnumerateArray().ToList();
-        Assert.Equal(["FIT", "TIY", "UUS"], companies.Select(c => c.GetProperty("company").GetString()!).ToArray());
+        // Planli kalem (maas) yalniz FIT'e yazilir; birlesik modda kayit reddedilir.
+        var next = DateTime.Today.AddMonths(1);
+        var body = new { kind = "salary", name = "Test maas", amount = 500m, dayOfMonth = 28, intervalMonths = 1,
+            startMonth = new DateOnly(next.Year, next.Month, 1), endMonth = (DateOnly?)null };
+        var rejected = await MultiCompanyFixture.SendAll(w.Patron, "POST", "/api/planned-cash-items", body);
+        Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+        Assert.Equal("company", await MultiCompanyFixture.CodeOf(rejected));
+        MultiCompanyFixture.Ok(await MultiCompanyFixture.Send(w.Patron, "POST", "/api/planned-cash-items", body, w.B));
 
-        // Acilis = kasaya giren tahsilat; toplu acilis sirketlerin toplamidir.
-        var byCode = companies.ToDictionary(c => c.GetProperty("company").GetString()!, c => MultiCompanyFixture.Money(c.GetProperty("opening")));
-        Assert.Equal(w.Receipts[w.B], byCode["FIT"]);
+        var f = await MultiCompanyFixture.Json(MultiCompanyFixture.Ok(
+            await MultiCompanyFixture.SendAll(w.Patron, "GET", "/api/reports/cash-forecast?months=3")));
+        var companies = f.GetProperty("companies").EnumerateArray().ToDictionary(c => c.GetProperty("company").GetString()!);
+        Assert.Equal(["FIT", "TIY", "UUS"], companies.Keys.Order().ToArray());
+
+        // Donemler: vadesi gecmis + bu ay + 2 ay. Maas FIT'in son iki ayinda, digerlerinde yok.
+        decimal Salary(string code, int k) => MultiCompanyFixture.Money(companies[code].GetProperty("buckets")[k].GetProperty("salaryOut"));
+        Assert.Equal(500m, Salary("FIT", 2));
+        Assert.Equal(500m, Salary("FIT", 3));
+        Assert.Equal(0m, Salary("UUS", 2));
+
+        // Acilis = kasaya giren tahsilat; toplu = sirketlerin toplami, kapanista maas dusulur.
+        Assert.Equal(w.Receipts[w.B], MultiCompanyFixture.Money(companies["FIT"].GetProperty("opening")));
         var total = f.GetProperty("total");
-        Assert.Equal(byCode.Values.Sum(), MultiCompanyFixture.Money(total.GetProperty("opening")));
+        var opening = companies.Values.Sum(c => MultiCompanyFixture.Money(c.GetProperty("opening")));
+        Assert.Equal(opening, MultiCompanyFixture.Money(total.GetProperty("opening")));
+        Assert.Equal(opening - 1000m, MultiCompanyFixture.Money(total.GetProperty("buckets")[3].GetProperty("closing")));
 
-        // Donemler: vadesi gecmis + 3 ay. Aylik gider varsayimi yalniz toplama yazilir, sirketlere dagitilmaz.
-        var totalBuckets = total.GetProperty("buckets").EnumerateArray().ToList();
-        Assert.Equal(4, totalBuckets.Count);
-        Assert.Equal(50m, MultiCompanyFixture.Money(totalBuckets[1].GetProperty("scenarioOut")));
-        Assert.Equal(0m, MultiCompanyFixture.Money(totalBuckets[0].GetProperty("scenarioOut")));
-        Assert.All(companies, c => Assert.Equal(0m, MultiCompanyFixture.Money(c.GetProperty("buckets")[1].GetProperty("scenarioOut"))));
-        Assert.Equal(byCode.Values.Sum() - 150m, MultiCompanyFixture.Money(totalBuckets[^1].GetProperty("closing")));
-
-        // Kasa okuma yetkisi olmayan Ortak tahmini goremez.
+        // Muhasebe C (yalniz TIY) FIT'in planli kalemini goremez; kasa okuma yetkisi olmayan Ortak tahmini goremez.
+        var cList = await MultiCompanyFixture.Json(MultiCompanyFixture.Ok(await MultiCompanyFixture.Send(w.MuhasebeC, "GET", "/api/planned-cash-items")));
+        Assert.Empty(cList.EnumerateArray());
         Assert.Equal(HttpStatusCode.Forbidden, (await MultiCompanyFixture.Send(w.OrtakB, "GET", "/api/reports/cash-forecast", null, w.B)).StatusCode);
     }
 

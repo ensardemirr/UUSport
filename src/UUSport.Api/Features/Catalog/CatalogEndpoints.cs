@@ -10,7 +10,7 @@ namespace UUSport.Api.Features.Catalog;
 public sealed record ItemInput(string Name, ItemKind Kind, string? Code, string? Unit, decimal UnitPrice,
     bool PriceIncludesVat, decimal VatRate, string? AccountCode = null, bool IsActive = true);
 
-public sealed record CashAccountInput(string Name, CashAccountKind Kind, Guid? ParentAccountId, bool IsActive = true);
+public sealed record CashAccountInput(string Name, CashAccountKind Kind, Guid? ParentAccountId, bool IsActive = true, short? PaymentDueDay = null);
 
 public static class CatalogEndpoints
 {
@@ -113,6 +113,7 @@ public static class CatalogEndpoints
             var codes = await db.Tenants.ToDictionaryAsync(t => t.Id, t => t.Code, ct);
             return Results.Ok(accounts.Select(a => new
             {
+                a.PaymentDueDay,
                 company = codes.GetValueOrDefault(a.TenantId, ""),
                 a.Id, a.Name, kind = AppDbContext.ToSnake(a.Kind.ToString()), a.IsActive, balance = balances.GetValueOrDefault(a.Id),
                 a.ParentAccountId, parentAccountName = a.ParentAccountId is { } pid ? names.GetValueOrDefault(pid) : null,
@@ -124,7 +125,8 @@ public static class CatalogEndpoints
             var name = TextRules.CleanName(input.Name);
             if (name.Length == 0) throw new DomainException("name", "Hesap adı zorunlu.");
             var parentId = await ValidateHierarchy(db, input.Kind, input.ParentAccountId, ct);
-            var a = new CashAccount { TenantId = tenant.Require(), Name = name, Kind = input.Kind, ParentAccountId = parentId, IsActive = input.IsActive };
+            var a = new CashAccount { TenantId = tenant.Require(), Name = name, Kind = input.Kind, ParentAccountId = parentId, IsActive = input.IsActive,
+                PaymentDueDay = DueDay(input) };
             db.CashAccounts.Add(a);
             audit.Add("cash_account.create", "cash_account", a.Id, new { a.Name, kind = a.Kind.ToString(), parentId });
             await db.SaveChangesAsync(ct);
@@ -138,10 +140,19 @@ public static class CatalogEndpoints
             a.Name = TextRules.CleanName(input.Name);
             a.ParentAccountId = parentId;
             a.IsActive = input.IsActive;
+            a.PaymentDueDay = a.Kind == CashAccountKind.CreditCard ? DueDay(input) : null;
             audit.Add("cash_account.update", "cash_account", a.Id, new { a.Name, a.IsActive, parentId });
             await db.SaveChangesAsync(ct);
             return Results.Ok(new { ok = true });
         }).RequireAuthorization(Policies.Admin);
+    }
+
+    /// <summary>Kredi karti son odeme gunu; yalniz kart hesabinda anlamlidir.</summary>
+    private static short? DueDay(CashAccountInput input)
+    {
+        if (input.Kind != CashAccountKind.CreditCard || input.PaymentDueDay is null) return null;
+        if (input.PaymentDueDay is < 1 or > 31) throw new DomainException("payment_due_day", "Son ödeme günü 1 ile 31 arasında olmalı.");
+        return input.PaymentDueDay;
     }
 
     /// <summary>

@@ -152,7 +152,7 @@ export type CashAccountKind = 'cash' | 'bank' | 'pos' | 'credit_card' | 'loan'
 
 export type CashAccount = WithCompany & {
   id: string; name: string; kind: CashAccountKind; isActive: boolean; balance: Money
-  parentAccountId: string | null; parentAccountName: string | null
+  parentAccountId: string | null; parentAccountName: string | null; paymentDueDay: number | null
 }
 
 export type PendingWork = {

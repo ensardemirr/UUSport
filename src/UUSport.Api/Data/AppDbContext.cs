@@ -28,6 +28,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataPr
     public DbSet<DocumentVatLine> DocumentVatLines => Set<DocumentVatLine>();
     public DbSet<DocumentLink> DocumentLinks => Set<DocumentLink>();
     public DbSet<CashAccount> CashAccounts => Set<CashAccount>();
+    public DbSet<PlannedCashItem> PlannedCashItems => Set<PlannedCashItem>();
     public DbSet<Loan> Loans => Set<Loan>();
     public DbSet<LoanInstallment> LoanInstallments => Set<LoanInstallment>();
     public DbSet<Check> Checks => Set<Check>();
@@ -257,6 +258,22 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IDataPr
             // Parent, uygulama katmaninda dogrulanir (Kind=Bank olmali); DB kisitiyla
             // capraz-satir kural zorlanamadigi icin CatalogEndpoints.ValidateHierarchy'ye bakin.
             e.HasOne<CashAccount>().WithMany().HasForeignKey(x => x.ParentAccountId).OnDelete(DeleteBehavior.Restrict);
+            e.ToTable(t => t.HasCheckConstraint("ck_cash_account__payment_due_day",
+                "payment_due_day IS NULL OR payment_due_day BETWEEN 1 AND 31"));
+        });
+        b.Entity<PlannedCashItem>(e =>
+        {
+            Tenant(e, "planned_cash_item", "finance");
+            e.Property(x => x.Kind).HasConversion(Snake<PlannedCashKind>()).HasMaxLength(30);
+            e.Property(x => x.Name).HasMaxLength(120);
+            e.HasIndex(x => new { x.TenantId, x.IsActive }).HasDatabaseName("ix_planned_cash_item__tenant_active");
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("ck_planned_cash_item__amount_positive", "amount > 0");
+                t.HasCheckConstraint("ck_planned_cash_item__day_range", "day_of_month BETWEEN 1 AND 28");
+                t.HasCheckConstraint("ck_planned_cash_item__interval_allowed", "interval_months IN (1, 2, 3, 6, 12)");
+                t.HasCheckConstraint("ck_planned_cash_item__month_order", "end_month IS NULL OR end_month >= start_month");
+            });
         });
 
         b.Entity<Loan>(e =>

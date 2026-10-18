@@ -1,6 +1,6 @@
 # UU Sport Ana Hafiza
 
-**Surum:** 3.8  
+**Surum:** 3.9  
 **Olusturma tarihi:** 23 Eylul 2026  
 **Son guncelleme:** 17 Ekim 2026  
 **Ilk yazar:** Codex  
@@ -716,6 +716,7 @@ Ayrintili standart:
 
 | Tarih | Surum | Yazan | Degisiklik |
 |---|---:|---|---|
+| 18.10.2026 | 3.9 | Claude Code | `[KULLANICI KARARI]` Nakit akisina aylik tahsilat/gider, kredi karti, vergi/KDV, maas, SGK, kira eklenmesi istendi. Uygulandi: migration `M4PlannedCashItems` + `M4PlannedCashItemsSecurity` (`finance.planned_cash_item`, RLS v2; `finance.cash_account.payment_due_day`). Sirket basina kalici **planli kalemler** (maas, SGK, muhtasar, kira, gecici vergi, KDV, diger gider, beklenen tahsilat; gun + tekrar araligi) `GET/POST/PUT /api/planned-cash-items`; tahmin bunlari, kart borcunu son odeme gununde ve **KDV'yi gecen ay ve bu ayin faturalarindan** (satis KDV - alis KDV, devreden mahsup, izleyen ayin 28'i) kullanir. `[ONERI]` KDV ve odeme gunleri varsayimi mali musavirle teyit edilmeli. Deneme ortami: `tools/demo/reset-demo.ps1` (`uusport_ui`, 5081) uc sirketli sentetik veri, gecmis 3 ay satis/alis/fatura/tahsilat, kredi, kart, cek ve **grup ici fatura + para transferi** (karsilikli elle girilir; ADR-012 2.5 onay kuyrugu ve `intercompany_link` henuz yok). Not: `.claude/hooks/koruma.ps1` Migrations klasorunde yeni uretilen dosyanin duzenlenmesini de engelliyor; RLS bu yuzden ayri migration ile eklendi. 83 test yesil. |
 | 18.10.2026 | 3.8 | Claude Code | `[KULLANICI KARARI]` Nakit akisi on calismasi (M4'un kucuk parcasi) one alindi; icerik kararini kullanici Claude'a birakti, sonra degisiklik isteyecek. Uygulandi: `GET /api/reports/cash-forecast` (`CashForecastService`) + `Rapor > Nakit Akisi` ekrani. Kapsam: acilis = kasa/banka/POS bakiyesi; giris = portfoydeki alinan cekler; cikis = odenmemis kredi taksitleri ve verilen cekler; vadesi gecmis ayri sutun; vadesiz acik alacak/borc kullanici oraniyla ilk aya; aylik sabit gelir/gider varsayimi yalniz toplu tabloda. Sirket bazinda veya toplu gorunum, ilk nakit acigi uyarisi, vadeli kalem listesi. Vergi, maas, kira, SGK, kredi karti ekstresi henuz yok (ADR-010/011, M4). 83 test yesil. |
 | 18.10.2026 | 3.7 | Claude Code | **M1.5 web arayuzu tamamlandi** (sirket secici, birlesik gorunum, yetkiye gore menu, Kullanicilar uyelik duzenleme, Sirketler sayfasi, sirket sutunlari ve kirilim satirlari). `[DOGRU]` kullanici 3 sirketli sentetik veriyle tarayicida dogruladi. Kalan M1.5: grup ici islemler, fazla tahsilat aktarimi, tedarikci kodu uclari, standart belgeleri (devir notu bolum 3). Kullanici nakit akisi ve ileri ay simulasyonunun yoklugunu fark etti: bu M4'tur (baslanmadi). |
 | 17.10.2026 | 3.6 | Claude Code | S-10 yedek betikleri `scripts/` altinda mevcut ve bu makinede calistirilarak dogrulandi (yedek + geri yukleme provasi basarili); zamanlanmis gorev kurulmadi, uzak konum ve parola saklama karari acik. Onceki "yedek betigi yok" tespiti (yalniz `tools/` incelenmisti) yanlisti, duzeltildi. |

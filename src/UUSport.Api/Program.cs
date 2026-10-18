@@ -228,6 +228,7 @@ app.MapAccounting();
 app.MapLoans();
 app.MapChecks();
 app.MapReports();
+UUSport.Api.Features.Cash.PlannedCashEndpoints.MapPlannedCash(app);
 app.MapImports();
 app.MapFallbackToFile("index.html");
 
