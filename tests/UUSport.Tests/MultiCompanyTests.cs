@@ -480,6 +480,32 @@ public sealed class MultiCompanyTests(MultiCompanyFixture w) : IClassFixture<Mul
         Assert.Equal(["TIY"], dashC.GetProperty("totalsByCompany").EnumerateArray().Select(t => t.GetProperty("company").GetString()!).ToArray());
     }
 
+    [Fact]
+    public async Task NakitAkisi_SirketBazindaVeToplu_VarsayimYalnizToplamda()
+    {
+        var resp = await MultiCompanyFixture.SendAll(w.Patron, "GET", "/api/reports/cash-forecast?months=3&monthlyExpense=50");
+        var f = await MultiCompanyFixture.Json(MultiCompanyFixture.Ok(resp));
+        var companies = f.GetProperty("companies").EnumerateArray().ToList();
+        Assert.Equal(["FIT", "TIY", "UUS"], companies.Select(c => c.GetProperty("company").GetString()!).ToArray());
+
+        // Acilis = kasaya giren tahsilat; toplu acilis sirketlerin toplamidir.
+        var byCode = companies.ToDictionary(c => c.GetProperty("company").GetString()!, c => MultiCompanyFixture.Money(c.GetProperty("opening")));
+        Assert.Equal(w.Receipts[w.B], byCode["FIT"]);
+        var total = f.GetProperty("total");
+        Assert.Equal(byCode.Values.Sum(), MultiCompanyFixture.Money(total.GetProperty("opening")));
+
+        // Donemler: vadesi gecmis + 3 ay. Aylik gider varsayimi yalniz toplama yazilir, sirketlere dagitilmaz.
+        var totalBuckets = total.GetProperty("buckets").EnumerateArray().ToList();
+        Assert.Equal(4, totalBuckets.Count);
+        Assert.Equal(50m, MultiCompanyFixture.Money(totalBuckets[1].GetProperty("scenarioOut")));
+        Assert.Equal(0m, MultiCompanyFixture.Money(totalBuckets[0].GetProperty("scenarioOut")));
+        Assert.All(companies, c => Assert.Equal(0m, MultiCompanyFixture.Money(c.GetProperty("buckets")[1].GetProperty("scenarioOut"))));
+        Assert.Equal(byCode.Values.Sum() - 150m, MultiCompanyFixture.Money(totalBuckets[^1].GetProperty("closing")));
+
+        // Kasa okuma yetkisi olmayan Ortak tahmini goremez.
+        Assert.Equal(HttpStatusCode.Forbidden, (await MultiCompanyFixture.Send(w.OrtakB, "GET", "/api/reports/cash-forecast", null, w.B)).StatusCode);
+    }
+
     private async Task SetOrtakKeysAsync(string[] granted)
     {
         var resp = await MultiCompanyFixture.Send(w.Patron, "PUT", $"/api/users/{w.UserOrtakB}", new

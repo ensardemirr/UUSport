@@ -188,6 +188,7 @@ builder.Services.AddScoped<AccountingService>();
 builder.Services.AddScoped<LoanService>();
 builder.Services.AddScoped<CheckService>();
 builder.Services.AddScoped<AccountingQueries>();
+builder.Services.AddScoped<UUSport.Api.Features.Reports.CashForecastService>();
 builder.Services.AddScoped<ImportService>();
 
 // ---------------------------------------------------------------------------

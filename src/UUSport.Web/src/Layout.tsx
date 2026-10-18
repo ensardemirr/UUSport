@@ -135,7 +135,12 @@ export function Layout() {
             {canWrite ? link('/aktarim', 'Excel Aktarımı') : null}
           </>
         ))}
-        {group('Rapor', linkIf('reports.summary', '/raporlar', 'Raporlar'))}
+        {group('Rapor', (
+          <>
+            {linkIf('reports.summary', '/raporlar', 'Raporlar')}
+            {can('reports.summary') ? linkIf('cash.read', '/nakit-akisi', 'Nakit Akışı') : null}
+          </>
+        ))}
         {isAdmin || isGroupAdmin ? group('Yönetim', (
           <>
             {isAdmin ? link('/yonetim/kullanicilar', 'Kullanıcılar') : null}

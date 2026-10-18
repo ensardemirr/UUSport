@@ -104,6 +104,19 @@ public static class ReportEndpoints
             }));
         }).RequirePermission(Permissions.CatalogRead);
 
+        // Nakit akisi tahmini (M4 on calismasi): kasa/banka ve vadeli kalemleri kullanir, cash.read ister.
+        g.MapGet("/cash-forecast", async (int? months, decimal? monthlyIncome, decimal? monthlyExpense, decimal? receivableRate,
+            decimal? payableRate, CashForecastService forecast, CancellationToken ct) =>
+        {
+            var a = new ForecastAssumptions(
+                Math.Clamp(months ?? 6, 1, 24),
+                Math.Max(0, Infrastructure.Money.Round(monthlyIncome ?? 0)),
+                Math.Max(0, Infrastructure.Money.Round(monthlyExpense ?? 0)),
+                Math.Clamp(receivableRate ?? 0, 0, 100),
+                Math.Clamp(payableRate ?? 0, 0, 100));
+            return Results.Ok(await forecast.BuildAsync(a, DateOnly.FromDateTime(DateTime.Now), ct));
+        }).RequirePermission(Permissions.CashRead);
+
         var audit = app.MapGroup("/api/audit").RequireAuthorization(Policies.Admin).RequirePermission(Permissions.AuditRead);
         audit.MapGet("", async (int? take, string? action, AppDbContext db, CancellationToken ct) =>
         {
