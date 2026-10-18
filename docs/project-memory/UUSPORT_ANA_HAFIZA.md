@@ -1,6 +1,6 @@
 # UU Sport Ana Hafiza
 
-**Surum:** 3.6  
+**Surum:** 3.7  
 **Olusturma tarihi:** 23 Eylul 2026  
 **Son guncelleme:** 17 Ekim 2026  
 **Ilk yazar:** Codex  
@@ -716,6 +716,7 @@ Ayrintili standart:
 
 | Tarih | Surum | Yazan | Degisiklik |
 |---|---:|---|---|
+| 18.10.2026 | 3.7 | Claude Code | **M1.5 web arayuzu tamamlandi** (sirket secici, birlesik gorunum, yetkiye gore menu, Kullanicilar uyelik duzenleme, Sirketler sayfasi, sirket sutunlari ve kirilim satirlari). `[DOGRU]` kullanici 3 sirketli sentetik veriyle tarayicida dogruladi. Kalan M1.5: grup ici islemler, fazla tahsilat aktarimi, tedarikci kodu uclari, standart belgeleri (devir notu bolum 3). Kullanici nakit akisi ve ileri ay simulasyonunun yoklugunu fark etti: bu M4'tur (baslanmadi). |
 | 17.10.2026 | 3.6 | Claude Code | S-10 yedek betikleri `scripts/` altinda mevcut ve bu makinede calistirilarak dogrulandi (yedek + geri yukleme provasi basarili); zamanlanmis gorev kurulmadi, uzak konum ve parola saklama karari acik. Onceki "yedek betigi yok" tespiti (yalniz `tools/` incelenmisti) yanlisti, duzeltildi. |
 | 17.10.2026 | 3.5 | Claude Code | `[KULLANICI KARARI]` KU-1..KU-7 yanitlari islendi (bolum 0); KU-5 acik. Canli hedef Kasim 2026, paralel calisma yok (risk notu eklendi). Bayat satirlar duzeltildi (son commit, test sayisi 82, "kod yazilmadi"). CLAUDE.md'deki 25 Eylul "ara" paragrafi kullanici onayiyla kaldirildi. Sentezde ADR-012 numara cakismasi giderildi (SaaS kapilari -> ADR-018). |
 | 17.10.2026 | 3.4 | Claude Code | **M1.5 madde 3:** liste satirlarina sirket kodu (`company`) ve rapor/pano `totalsByCompany` kirilimi eklendi; daily-collections birlesik gorunumde sirket bazinda ayri satir. 82 test yesil. Ayrinti: devir notu 2.7. |

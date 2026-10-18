@@ -137,6 +137,23 @@ Dal: `claude/uusport-durumu-102mgc` (GitHub `ensardemirr/UUSport`). `master`'a b
 - Kalan (web): `rows[].company` ve `totalsByCompany` alanlarini arayuz gosterecek (madde 4). `grandTotal` ayri alan
   eklenmedi; mevcut toplam alanlari bu rolu ustleniyor.
 
+### 2.8 Web arayuzu (18 Ekim 2026) - `[DOGRU]`
+- `api.ts`: `X-UUSport-Companies` basligi merkezi (`setCompanySelection`); `Me` tipi genisledi; satir tiplerine `company`.
+- `auth.tsx`: `companies`, `selectedIds`, `selectCompanies` (localStorage'da saklanir), `isAdmin`, `isGroupAdmin`,
+  `canWrite`, `can(anahtar)`, `consolidated`, `selectionVersion` (secim degisince sayfalar yeniden yuklenir).
+- `Layout.tsx`: ust cubukta sirket secici (rozet + ad, "Tumu"), birlesik gorunum ve salt okunur bantlari, menu yetki
+  anahtarlarina gore. Yonetim: Kullanicilar (Yonetici), Sirketler (grup yoneticisi), Denetim (`audit.read`).
+- `pages/ManagementPages.tsx` (yeni): `UsersPage` uyelik duzenleme (sirket x rol, 8 yetki kutusu; sablondan sapma
+  `grantedKeys/deniedKeys` olarak gonderilir), `CompaniesPage` (yalniz grup yoneticisi). Eski `UsersPage` kaldirildi
+  (sunucu `roles` yerine `memberships` dondurdugu icin bozuktu).
+- `WriteScope` (disabled fieldset): birlesik gorunumde ve Ortak'ta kayit dugmeleri pasif; satir ici eylemler gizlenir.
+- Birlesik modda Cariler, Katalog, Kasa, Faturalar, Hesap Hareketleri, Bekleyen ve Raporlarda sirket etiketi;
+  panoda ve raporlarda `totalsByCompany` satirlari.
+- Dogrulama: `tsc -b` + `build-uusport.ps1` (82 test) yesil; kullanici 3 sirketli sentetik veriyle (`uusport_ui`)
+  tarayicida gecti ve "hepsi calisiyor" dedi. Claude'un kendi tarayici otomasyonu `/chrome` ayari yuzunden
+  calismadi; ekran goruntulu otomatik kanit yok.
+- Kalan kucuk isler: ekstre basliginda "Resmi Cari" -> "Muhasebe Cari" (KU-2); Ortak sablonu varsayilanlari (`[ACIK]`).
+
 ## 3. Ne kaldi (sirayla) - yapilmasi gerekenler
 
 1. ~~**MultiCompanyTests**~~ **YAPILDI (bolum 2.6).** Kapsam asagida; "birlesik rapor toplami" `open-balances` ve
@@ -152,13 +169,7 @@ Dal: `claude/uusport-durumu-102mgc` (GitHub `ensardemirr/UUSport`). `master`'a b
 2. **SchemaGuardTests**: politika metninin `app.tenant_ids` icerdigini ve `WITH CHECK`'in tekil
    oldugunu `pg_policies.qual / with_check` ile dogrula; `supplier_item_code` RLS listesinde.
 3. ~~**Birlesik modda liste satirlarina sirket kodu.**~~ **YAPILDI (bolum 2.7).**
-4. **Web (hic baslanmadi).** `api.ts`: `X-UUSport-Companies` basligi (modul degiskeni), `Me` tipi
-   genisler. `auth.tsx`: `companies`, `selected` (localStorage), `isAdmin = me.isAdmin`,
-   `canWrite = me.canWrite`, `isGroupAdmin`. `Layout.tsx`: ust cubukta rozetler (kisa kod + renk),
-   "Tumu", coklu secim; birlesik modda banner "Birlesik gorunum: kayit icin tek sirket secin" ve
-   yazma dugmeleri pasif. `UsersPage` uyelik duzenleme (sirket x rol tablosu, Ortak icin anahtar
-   tikleri, "etkin yetkiler" salt okunur). Yeni `CompaniesPage` (`/yonetim/sirketler`, yalniz grup
-   yoneticisi). Listelerde birlesik modda "Sirket" sutunu. `npm run build` + ekran goruntusu.
+4. ~~**Web.**~~ **YAPILDI (bolum 2.8).**
 5. **Grup ici islemler** (ADR-012 2.5): `integration.intercompany_link`, "Grup ici cari ac"
    (`party.related_tenant_id`), oneri kuyrugu ve onay ucu, birlesik raporda "Grup ici" ayrimi.
 6. **Fazla tahsilat aktarimi** (ADR-012 2.6): `approved_adjustment` cifti + karsi sirkette onay.

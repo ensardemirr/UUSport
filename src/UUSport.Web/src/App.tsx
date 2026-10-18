@@ -6,10 +6,11 @@ import { LoginPage, MfaSetupPage, SetupPage } from './pages/AuthPages'
 import { ImportPage } from './pages/ImportPage'
 import { ChecksPage, LoansPage } from './pages/CashDetailPages'
 import { PartyDetailPage, PartyListPage } from './pages/PartyPages'
-import { AuditPage, CashPage, CatalogPage, DashboardPage, DocumentsPage, LedgerListPage, PendingPage, ReportsPage, UsersPage } from './pages/WorkPages'
+import { CompaniesPage, UsersPage } from './pages/ManagementPages'
+import { AuditPage, CashPage, CatalogPage, DashboardPage, DocumentsPage, LedgerListPage, PendingPage, ReportsPage } from './pages/WorkPages'
 
 function Gate() {
-  const { me, needsSetup, isAdmin } = useAuth()
+  const { me, needsSetup, isAdmin, isGroupAdmin, can } = useAuth()
   if (needsSetup === null || me === null) return <Loading label="UU Sport açılıyor…" />
   if (needsSetup) return <SetupPage />
   if (!me.authenticated) return <LoginPage />
@@ -18,7 +19,8 @@ function Gate() {
   return (
     <Routes>
       <Route element={<Layout />}>
-        <Route index element={<DashboardPage />} />
+        {/* Genel bakis hesap hareketi yetkisi ister; yoksa kullanici izinli ilk ekrana gider (menu ile ayni kural). */}
+        <Route index element={can('ledger.read') ? <DashboardPage /> : <Navigate to={can('reports.summary') ? '/raporlar' : can('parties.read') ? '/cariler' : '/raporlar'} replace />} />
         <Route path="cariler" element={<PartyListPage />} />
         <Route path="cariler/:id" element={<PartyDetailPage />} />
         <Route path="bekleyen" element={<PendingPage />} />
@@ -31,7 +33,8 @@ function Gate() {
         <Route path="aktarim" element={<ImportPage />} />
         <Route path="raporlar" element={<ReportsPage />} />
         {isAdmin ? <Route path="yonetim/kullanicilar" element={<UsersPage />} /> : null}
-        {isAdmin ? <Route path="yonetim/denetim" element={<AuditPage />} /> : null}
+        {isGroupAdmin ? <Route path="yonetim/sirketler" element={<CompaniesPage />} /> : null}
+        {isAdmin && can('audit.read') ? <Route path="yonetim/denetim" element={<AuditPage />} /> : null}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

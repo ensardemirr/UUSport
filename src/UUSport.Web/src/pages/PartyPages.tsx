@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useNavigate, useParams } from 'react-router'
 import { api, post, put, type DocumentRow, type LedgerRow, type LineRow, type PartyDetail, type PartyKind, type PartyListRow, type PaymentRow } from '../api'
-import { Dialog, Empty, ErrorBox, Field, Loading, ReasonDialog, StatusBadge, Tabs, errorText, useAsync, useToast } from '../components'
+import { useAuth } from '../auth'
+import { CompanyTag, Dialog, Empty, ErrorBox, Field, Loading, ReasonDialog, StatusBadge, Tabs, WriteScope, errorText, useAsync, useToast } from '../components'
 import { date, docTypeName, kindName, money, quantity } from '../format'
 import { AllocateDialog, DocumentDialog, InvoicePrepDialog, OpeningBalanceDialog, PaymentDialog, ReverseDialog, TradeLineDialog } from './Dialogs'
 
@@ -15,6 +16,7 @@ export function PartyListPage() {
   const [kind, setKind] = useState('')
   const [creating, setCreating] = useState(false)
   const navigate = useNavigate()
+  const { consolidated } = useAuth()
   const { data, error, loading } = useAsync(
     () => api<PartyListRow[]>(`/api/parties?q=${encodeURIComponent(q)}&kind=${kind}`), [q, kind])
 
@@ -25,7 +27,7 @@ export function PartyListPage() {
           <h1>Cariler</h1>
           <p className="sub">Veliler, müşteriler ve tedarikçiler. Aynı kişi için tek cari.</p>
         </div>
-        <button className="btn primary" type="button" onClick={() => setCreating(true)}>Yeni Cari</button>
+        <WriteScope><button className="btn primary" type="button" onClick={() => setCreating(true)}>Yeni Cari</button></WriteScope>
       </div>
       <div className="panel">
         <div className="panel-head">
@@ -46,10 +48,11 @@ export function PartyListPage() {
         ) : (
           <div className="table-wrap">
             <table>
-              <thead><tr><th>Cari</th><th>Tür</th><th>Sporcular</th><th>Telefon</th><th className="num">Bakiye</th></tr></thead>
+              <thead><tr>{consolidated ? <th>Şirket</th> : null}<th>Cari</th><th>Tür</th><th>Sporcular</th><th>Telefon</th><th className="num">Bakiye</th></tr></thead>
               <tbody>
                 {data?.map((p) => (
                   <tr key={p.id}>
+                    {consolidated ? <td className="company-col"><CompanyTag code={p.company} /></td> : null}
                     <td><Link className="row-link" to={`/cariler/${p.id}`}>{p.name}</Link><span className="sub">{p.code}</span></td>
                     <td>{kindName(p.kind)}</td>
                     <td className="small">{p.athletes.join(', ') || <span className="muted">—</span>}</td>
@@ -145,6 +148,7 @@ type Modal =
 export function PartyDetailPage() {
   const { id = '' } = useParams()
   const toast = useToast()
+  const { canWrite } = useAuth()
   const [view, setView] = useState('all')
   const [modal, setModal] = useState<Modal>({ kind: 'none' })
   const detail = useAsync(() => api<PartyDetail>(`/api/parties/${id}`), [id])
@@ -183,6 +187,7 @@ export function PartyDetailPage() {
         </div>
         <div className="actions">
           <button className="btn ghost" type="button" onClick={() => setModal({ kind: 'statement' })}>Ekstre Al</button>
+          <WriteScope>
           {isCustomer ? <>
             <button className="btn" type="button" onClick={() => setModal({ kind: 'trade', direction: 'sale' })}>Stok veya Hizmet Çıkışı</button>
             <button className="btn primary" type="button" onClick={() => setModal({ kind: 'payment', direction: 'receipt' })}>Tahsilat Al</button>
@@ -193,6 +198,7 @@ export function PartyDetailPage() {
             <button className="btn" type="button" onClick={() => setModal({ kind: 'document', direction: 'purchase', preselect: [] })}>Alış Faturası Gir</button>
             <button className={isCustomer ? 'btn' : 'btn primary'} type="button" onClick={() => setModal({ kind: 'payment', direction: 'disbursement' })}>Ödeme Yap</button>
           </> : null}
+          </WriteScope>
         </div>
       </div>
 
@@ -230,16 +236,16 @@ export function PartyDetailPage() {
               {view === 'all' ? <LedgerTable rows={ledger.data} /> : null}
               {view === 'official' ? (
                 <LineTable rows={official} emptyTitle="Belgelenmiş satır yok"
-                  onReverse={(l) => setModal({ kind: 'reverse', line: l })} />
+                  onReverse={canWrite ? (l) => setModal({ kind: 'reverse', line: l }) : undefined} />
               ) : null}
               {view === 'pending' ? (
                 <div className="stack">
                   <LineTable rows={pendingLines} emptyTitle="Faturası beklenen satır yok"
-                    onReverse={(l) => setModal({ kind: 'reverse', line: l })}
-                    onInvoice={(l) => setModal({ kind: 'document', direction: l.direction, preselect: [l.id] })} />
+                    onReverse={canWrite ? (l) => setModal({ kind: 'reverse', line: l }) : undefined}
+                    onInvoice={canWrite ? (l) => setModal({ kind: 'document', direction: l.direction, preselect: [l.id] }) : undefined} />
                   <PaymentTable rows={openPayments} title="Dağıtılmamış tahsilat / ödeme"
-                    onAllocate={(p) => setModal({ kind: 'allocate', payment: p })}
-                    onReverse={(p) => setModal({ kind: 'reversePayment', payment: p })} />
+                    onAllocate={canWrite ? (p) => setModal({ kind: 'allocate', payment: p }) : undefined}
+                    onReverse={canWrite ? (p) => setModal({ kind: 'reversePayment', payment: p }) : undefined} />
                 </div>
               ) : null}
             </div>
@@ -254,19 +260,20 @@ export function PartyDetailPage() {
         <div className="panel-head">
           <h2>Tüm satırlar</h2>
         </div>
-        <LineTable rows={allLines} emptyTitle="Henüz satış veya alış yok" onReverse={(l) => setModal({ kind: 'reverse', line: l })} />
+        <LineTable rows={allLines} emptyTitle="Henüz satış veya alış yok" onReverse={canWrite ? (l) => setModal({ kind: 'reverse', line: l }) : undefined} />
       </div>
       <div className="grid-2" style={{ marginTop: 16 }}>
         <div className="stack">
           <PaymentTable rows={payments.data ?? []} title="Tahsilat ve ödemeler"
-            onAllocate={(p) => setModal({ kind: 'allocate', payment: p })} onReverse={(p) => setModal({ kind: 'reversePayment', payment: p })} />
+            onAllocate={canWrite ? (p) => setModal({ kind: 'allocate', payment: p }) : undefined}
+            onReverse={canWrite ? (p) => setModal({ kind: 'reversePayment', payment: p }) : undefined} />
           <DocumentTable rows={documents.data ?? []} />
         </div>
         <div className="stack">
           <div className="panel">
             <div className="panel-head">
               <h2>Sporcular</h2>
-              <button className="btn small" type="button" onClick={() => setModal({ kind: 'athlete' })}>Sporcu Ekle</button>
+              <WriteScope><button className="btn small" type="button" onClick={() => setModal({ kind: 'athlete' })}>Sporcu Ekle</button></WriteScope>
             </div>
             {athletes.length === 0 ? <Empty title="Bağlı sporcu yok" /> : (
               <table>
@@ -278,8 +285,10 @@ export function PartyDetailPage() {
             )}
           </div>
           <div className="actions">
-            <button className="btn" type="button" onClick={() => setModal({ kind: 'edit' })}>Cariyi Düzenle</button>
-            <button className="btn" type="button" onClick={() => setModal({ kind: 'opening' })}>Açılış Bakiyesi</button>
+            <WriteScope>
+              <button className="btn" type="button" onClick={() => setModal({ kind: 'edit' })}>Cariyi Düzenle</button>
+              <button className="btn" type="button" onClick={() => setModal({ kind: 'opening' })}>Açılış Bakiyesi</button>
+            </WriteScope>
           </div>
         </div>
       </div>
@@ -449,6 +458,7 @@ function LedgerTable({ rows }: { rows: LedgerRow[] | null }) {
 export function LineTable({ rows, emptyTitle, onReverse, onInvoice, compact, showParty }: {
   rows: LineRow[]; emptyTitle: string; onReverse?: (l: LineRow) => void; onInvoice?: (l: LineRow) => void; compact?: boolean; showParty?: boolean
 }) {
+  const { consolidated } = useAuth()
   if (rows.length === 0) return <Empty title={emptyTitle} />
   return (
     <div className="table-wrap">
@@ -463,7 +473,7 @@ export function LineTable({ rows, emptyTitle, onReverse, onInvoice, compact, sho
           {rows.map((l) => (
             <tr key={l.id}>
               <td>{date(l.occurredOn)}</td>
-              {showParty ? <td><Link className="row-link" to={`/cariler/${l.partyId}`}>{l.partyName}</Link></td> : null}
+              {showParty ? <td>{consolidated ? <><CompanyTag code={l.company} />{' '}</> : null}<Link className="row-link" to={`/cariler/${l.partyId}`}>{l.partyName}</Link></td> : null}
               <td>
                 {l.reversesLineId ? 'İade: ' : l.direction === 'purchase' ? 'Alış: ' : ''}{l.itemName}
                 <span className="sub">{l.itemKind === 'stock' ? 'Stok' : 'Hizmet'}{compact ? ` · ${quantity(l.quantity)}` : ''}{l.description ? ` · ${l.description}` : ''}</span>
@@ -491,6 +501,7 @@ export function LineTable({ rows, emptyTitle, onReverse, onInvoice, compact, sho
 export function PaymentTable({ rows, title, onAllocate, onReverse, showParty }: {
   rows: PaymentRow[]; title: string; onAllocate?: (p: PaymentRow) => void; onReverse?: (p: PaymentRow) => void; showParty?: boolean
 }) {
+  const { consolidated } = useAuth()
   return (
     <div className="panel">
       <div className="panel-head"><h2>{title}</h2></div>
@@ -502,7 +513,7 @@ export function PaymentTable({ rows, title, onAllocate, onReverse, showParty }: 
               {rows.map((p) => (
                 <tr key={p.id}>
                   <td>{date(p.occurredOn)}</td>
-                  {showParty ? <td><Link className="row-link" to={`/cariler/${p.partyId}`}>{p.partyName}</Link></td> : null}
+                  {showParty ? <td>{consolidated ? <><CompanyTag code={p.company} />{' '}</> : null}<Link className="row-link" to={`/cariler/${p.partyId}`}>{p.partyName}</Link></td> : null}
                   <td>
                     {p.isReversal ? 'İptal: ' : ''}{p.direction === 'receipt' ? 'Tahsilat' : 'Ödeme'} · {p.method}
                     <span className="sub">{p.accountName}{p.reference ? ` · ${p.reference}` : ''}{p.isReversed ? ' · iptal edildi' : ''}</span>

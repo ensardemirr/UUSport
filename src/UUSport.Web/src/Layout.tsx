@@ -2,8 +2,11 @@ import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router'
 import { api, post } from './api'
 import { useAuth } from './auth'
+import { CompanyTag } from './components'
 
 type Counts = { salesAwaitingInvoice: number; purchasesAwaitingInvoice: number; unallocatedPayments: number; pendingOpeningBalances: number }
+
+const ROLE_LABEL: Record<string, string> = { Yonetici: 'Yönetici', Muhasebe: 'Muhasebe', Ortak: 'Ortak' }
 
 const NAV_STATE_KEY = 'uusport.nav.open'
 
@@ -25,8 +28,36 @@ function writeOpenGroups(state: Record<string, boolean>) {
   }
 }
 
+/**
+ * Sirket secici (ADR-012 2.9). Her sirket bir anahtar dugmedir (aria-pressed); "Tumu" izinli tum sirketleri
+ * secer. Birden cok sirket secilince arayuz yalniz okuma moduna gecer (sunucu yazmayi zaten reddeder).
+ */
+function CompanySwitcher() {
+  const { companies, selectedIds, selectCompanies } = useAuth()
+  if (companies.length === 0) return null
+  if (companies.length === 1) return <div className="company-switch"><CompanyTag code={companies[0].code} /><span>{companies[0].name}</span></div>
+  const allSelected = companies.every((c) => selectedIds.includes(c.id))
+  const toggle = (id: string) => {
+    const next = selectedIds.includes(id) ? selectedIds.filter((x) => x !== id) : [...selectedIds, id]
+    if (next.length > 0) void selectCompanies(next)
+  }
+  return (
+    <div className="company-switch" role="group" aria-label="Çalışılan şirketler">
+      {companies.map((c) => (
+        <button key={c.id} type="button" className="co-chip" aria-pressed={selectedIds.includes(c.id)} title={c.name}
+          onClick={() => toggle(c.id)}>
+          <CompanyTag code={c.code} /><span className="co-name">{c.name}</span>
+        </button>
+      ))}
+      <button type="button" className="co-chip co-all" aria-pressed={allSelected} onClick={() => void selectCompanies(companies.map((c) => c.id))}>
+        Tümü
+      </button>
+    </div>
+  )
+}
+
 export function Layout() {
-  const { me, isAdmin, refresh } = useAuth()
+  const { me, isAdmin, isGroupAdmin, can, canWrite, consolidated, selectionVersion, refresh } = useAuth()
   const location = useLocation()
   const [pending, setPending] = useState<number | null>(null)
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => readOpenGroups())
@@ -39,14 +70,18 @@ export function Layout() {
   }, [])
 
   useEffect(() => {
+    if (!can('ledger.read')) { setPending(null); return }
     api<Counts>('/api/dashboard')
       .then((c) => setPending(c.salesAwaitingInvoice + c.purchasesAwaitingInvoice + c.unallocatedPayments + c.pendingOpeningBalances))
       .catch(() => setPending(null))
-  }, [location.pathname])
+  }, [location.pathname, selectionVersion, can])
 
   const link = (to: string, label: string, extra?: React.ReactNode) => (
     <NavLink to={to} end={to === '/'}>{label}{extra}</NavLink>
   )
+  // Menu yalniz kisayoldur; asil yetki sunucudadir. Yetkisiz olunan baglantilar gosterilmez.
+  const linkIf = (key: string, to: string, label: string, extra?: React.ReactNode) =>
+    can(key) ? link(to, label, extra) : null
 
   const toggleGroup = (name: string, open: boolean) => {
     setOpenGroups((prev) => {
@@ -81,39 +116,41 @@ export function Layout() {
           </div>
         </div>
         <nav className="nav nav-top" aria-label="Ana Sayfa">
-          {link('/', 'Genel Bakış')}
+          {linkIf('ledger.read', '/', 'Genel Bakış')}
         </nav>
         {group('Günlük iş', (
           <>
-            {link('/cariler', 'Cariler')}
-            {link('/bekleyen', 'Muhasebe Bekleyen', pending ? <span className="count" aria-label={`${pending} bekleyen iş`}>{pending}</span> : null)}
-            {link('/faturalar', 'Faturalar')}
-            {link('/hesap-hareketleri', 'Hesap Hareketleri')}
+            {linkIf('parties.read', '/cariler', 'Cariler')}
+            {linkIf('ledger.read', '/bekleyen', 'Muhasebe Bekleyen', pending ? <span className="count" aria-label={`${pending} bekleyen iş`}>{pending}</span> : null)}
+            {linkIf('documents.read', '/faturalar', 'Faturalar')}
+            {linkIf('ledger.read', '/hesap-hareketleri', 'Hesap Hareketleri')}
           </>
         ))}
         {group('Tanımlar', (
           <>
-            {link('/katalog', 'Ürün ve Hizmetler')}
-            {link('/kasa-banka', 'Kasa ve Banka')}
-            {link('/krediler', 'Krediler')}
-            {link('/cekler', 'Çek Portföyü')}
-            {link('/aktarim', 'Excel Aktarımı')}
+            {linkIf('catalog.read', '/katalog', 'Ürün ve Hizmetler')}
+            {linkIf('cash.read', '/kasa-banka', 'Kasa ve Banka')}
+            {linkIf('cash.read', '/krediler', 'Krediler')}
+            {linkIf('cash.read', '/cekler', 'Çek Portföyü')}
+            {canWrite ? link('/aktarim', 'Excel Aktarımı') : null}
           </>
         ))}
-        {group('Rapor', link('/raporlar', 'Raporlar'))}
-        {isAdmin ? group('Yönetim', (
+        {group('Rapor', linkIf('reports.summary', '/raporlar', 'Raporlar'))}
+        {isAdmin || isGroupAdmin ? group('Yönetim', (
           <>
-            {link('/yonetim/kullanicilar', 'Kullanıcılar')}
-            {link('/yonetim/denetim', 'Denetim Kaydı')}
+            {isAdmin ? link('/yonetim/kullanicilar', 'Kullanıcılar') : null}
+            {isGroupAdmin ? link('/yonetim/sirketler', 'Şirketler') : null}
+            {isAdmin && can('audit.read') ? link('/yonetim/denetim', 'Denetim Kaydı') : null}
           </>
         )) : null}
         <div className="sidebar-foot">Sürüm 0.1 · Faz 1 (yerel ağ)</div>
       </aside>
       <div className="main">
         <header className="topbar">
-          <span className="muted">Geliştirme ortamı — yalnız sentetik veri</span>
+          <CompanySwitcher />
           <div className="who">
-            <span>{me?.fullName} <span className="muted small">({me?.roles?.includes('Yonetici') ? 'Yönetici' : 'Muhasebe'})</span></span>
+            <span className="muted small env-note">Geliştirme ortamı — yalnız sentetik veri</span>
+            <span>{me?.fullName} <span className="muted small">({me?.isGroupAdmin ? 'Grup yöneticisi' : (me?.roles ?? []).map((r) => ROLE_LABEL[r] ?? r).join(' / ')})</span></span>
             <button type="button" className="btn small" onClick={async () => { await post('/api/auth/logout'); await refresh() }}>Çıkış</button>
           </div>
         </header>
@@ -123,13 +160,24 @@ export function Layout() {
             <button type="button" className="btn small primary" onClick={() => window.location.reload()}>Yenile</button>
           </div>
         ) : null}
-        {isAdmin && me?.onlyAdmin ? (
+        {isGroupAdmin && me?.onlyAdmin ? (
           <div className="version-banner" role="status">
-            <span>Sistemde tek yönetici hesabı var. Bu hesap kilitlenirse kimse yönetici işlemi yapamaz; ikinci bir yönetici oluşturmanız önerilir.</span>
+            <span>Sistemde tek grup yöneticisi hesabı var. Bu hesap kilitlenirse kimse grup işlemi yapamaz; ikinci bir grup yöneticisi oluşturmanız önerilir.</span>
             <NavLink to="/yonetim/kullanicilar" className="btn small primary">Kullanıcılar</NavLink>
           </div>
         ) : null}
-        <main className="content" id="icerik">
+        {consolidated ? (
+          <div className="mode-banner" role="status">
+            <strong>Birleşik görünüm</strong>
+            <span>Seçili şirketler birlikte gösteriliyor; yalnız okunur. Kayıt girmek için tek şirket seçin.</span>
+          </div>
+        ) : !canWrite ? (
+          <div className="mode-banner" role="status">
+            <strong>Salt okunur</strong>
+            <span>Bu şirkette rolünüz kayıt girmeye izin vermiyor.</span>
+          </div>
+        ) : null}
+        <main className="content" id="icerik" key={selectionVersion}>
           <Outlet />
         </main>
       </div>

@@ -303,6 +303,56 @@ dialog::backdrop { background: rgba(7, 20, 36, 0.55); }
 .qr { display: grid; place-items: center; padding: 12px; background: #fff; border-radius: 10px; border: 1px solid var(--line); }
 .code { font-family: Consolas, "Cascadia Mono", monospace; font-size: 15px; letter-spacing: 0.06em; padding: 8px 10px; border-radius: 8px; background: var(--surface-3); word-break: break-all; }
 
+/* ---------- cok sirket (ADR-012) ----------
+ * Sirket tonu yalniz ayirt etmeye yardim eder; anlam her zaman sirket kodunda (UUS, FIT, TIY) tasinir. */
+:root {
+  --co-0-bg: #e8f1fd; --co-0-ink: #0a4a9f;
+  --co-1-bg: #e3f4ea; --co-1-ink: #0f6a40;
+  --co-2-bg: #fff1d6; --co-2-ink: #7a4b00;
+  --co-3-bg: #f3e8fd; --co-3-ink: #6a1fa8;
+  --co-4-bg: #fde8f0; --co-4-ink: #a3195b;
+  --co-5-bg: #e1f4f5; --co-5-ink: #0b6870;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --co-0-bg: #16273d; --co-0-ink: #8ab8ff;
+    --co-1-bg: #15311f; --co-1-ink: #7fd6a4;
+    --co-2-bg: #3a2c10; --co-2-ink: #ffcf7a;
+    --co-3-bg: #2a1a3d; --co-3-ink: #d6a9ff;
+    --co-4-bg: #3b1727; --co-4-ink: #ff9fc4;
+    --co-5-bg: #113034; --co-5-ink: #7fd8df;
+  }
+}
+.co-tag {
+  display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 6px; font-size: 12px; font-weight: 750;
+  letter-spacing: 0.04em; background: var(--co-0-bg); color: var(--co-0-ink); white-space: nowrap;
+}
+.co-tag[data-tone="1"] { background: var(--co-1-bg); color: var(--co-1-ink); }
+.co-tag[data-tone="2"] { background: var(--co-2-bg); color: var(--co-2-ink); }
+.co-tag[data-tone="3"] { background: var(--co-3-bg); color: var(--co-3-ink); }
+.co-tag[data-tone="4"] { background: var(--co-4-bg); color: var(--co-4-ink); }
+.co-tag[data-tone="5"] { background: var(--co-5-bg); color: var(--co-5-ink); }
+.company-switch { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-weight: 600; }
+.co-chip {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 4px 12px 4px 6px; border-radius: 99px;
+  border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink-2); font-weight: 600; cursor: pointer;
+}
+.co-chip:hover { background: var(--surface-3); }
+.co-chip[aria-pressed="true"] { border-color: var(--primary); background: var(--primary-soft); color: var(--ink); box-shadow: inset 0 0 0 1px var(--primary); }
+.co-chip.co-all { padding: 4px 14px; }
+.mode-banner {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 8px 28px;
+  background: var(--primary-soft); color: var(--ink); border-bottom: 1px solid var(--line);
+}
+.company-col { width: 1%; }
+.write-scope { border: 0; margin: 0; padding: 0; min-width: 0; display: contents; }
+.perm-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 6px 12px; }
+.perm-grid label { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.perm-grid input { width: 16px; height: 16px; accent-color: var(--primary); }
+.membership { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 12px; background: var(--surface-2); display: grid; gap: 10px; }
+.membership-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.membership.off { background: transparent; border-style: dashed; }
+
 /* ---------- sihirbaz ---------- */
 .steps { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; list-style: none; padding: 0; }
 .steps li { padding: 6px 12px; border-radius: 99px; background: var(--surface-3); color: var(--ink-3); font-weight: 600; font-size: 13px; }
@@ -319,6 +369,8 @@ dialog::backdrop { background: rgba(7, 20, 36, 0.55); }
   .nav-group:not([open]) > .nav { display: flex !important; }
   .content { padding: 18px 16px 40px; }
   .form-grid { grid-template-columns: 1fr; }
+  .topbar { padding: 8px 16px; flex-wrap: wrap; }
+  .env-note { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router'
 import { api, post, put, type CashAccount, type DocumentRow, type Item, type LedgerListRow, type PartyListRow, type PaymentRow, type PendingWork } from '../api'
 import { useAuth } from '../auth'
-import { Dialog, Empty, ErrorBox, Field, Loading, ReasonDialog, StatusBadge, Tabs, errorText, useAsync, useToast } from '../components'
+import { CompanyTag, Dialog, Empty, ErrorBox, Field, Loading, ReasonDialog, StatusBadge, Tabs, WriteScope, errorText, useAsync, useToast } from '../components'
 import { date, dateTime, docTypeName, money, normalizeNumber, percent, quantity, today } from '../format'
 import { LineTable, PaymentTable } from './PartyPages'
 
@@ -14,10 +14,11 @@ type Dashboard = {
   receiptsToday: string; receiptsThisMonth: string; openReceivables: string; customerAdvances: string
   salesAwaitingInvoice: number; purchasesAwaitingInvoice: number; unallocatedPayments: number; pendingOpeningBalances: number
   recentPayments: PaymentRow[]
+  totalsByCompany: { company: string; receiptsToday: string; receiptsThisMonth: string; openReceivables: string; customerAdvances: string }[]
 }
 
 export function DashboardPage() {
-  const { me } = useAuth()
+  const { me, canWrite, consolidated } = useAuth()
   const { data, error } = useAsync(() => api<Dashboard>('/api/dashboard'), [])
   const pendingTotal = data ? data.salesAwaitingInvoice + data.purchasesAwaitingInvoice + data.unallocatedPayments + data.pendingOpeningBalances : 0
   return (
@@ -28,7 +29,7 @@ export function DashboardPage() {
           <p className="sub">{new Date().toLocaleDateString('tr-TR', { dateStyle: 'full' })} · Bugünkü durum</p>
         </div>
         <div className="actions">
-          <Link className="btn" to="/aktarim">Excel'den Aktar</Link>
+          {canWrite ? <Link className="btn" to="/aktarim">Excel'den Aktar</Link> : null}
           <Link className="btn primary" to="/cariler">Cariye Git</Link>
         </div>
       </div>
@@ -44,6 +45,20 @@ export function DashboardPage() {
               <div className="note">{data.salesAwaitingInvoice} satış faturası · {data.unallocatedPayments} dağıtım · {data.pendingOpeningBalances} açılış onayı</div>
             </div>
           </section>
+          {consolidated ? (
+            <div className="panel" style={{ marginBottom: 16 }}>
+              <div className="panel-head"><h2>Şirket kırılımı</h2><span className="muted small">Yukarıdaki kartlar seçili şirketlerin toplamıdır.</span></div>
+              <div className="table-wrap">
+                <table>
+                  <thead><tr><th>Şirket</th><th className="num">Bugün tahsil</th><th className="num">Bu ay tahsil</th><th className="num">Açık alacak</th><th className="num">Müşteri avansı</th></tr></thead>
+                  <tbody>{data.totalsByCompany.map((t) => (
+                    <tr key={t.company}><td><CompanyTag code={t.company} /></td><td className="num">{money(t.receiptsToday)}</td><td className="num">{money(t.receiptsThisMonth)}</td>
+                      <td className="num">{money(t.openReceivables)}</td><td className="num">{money(t.customerAdvances)}</td></tr>
+                  ))}</tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
           {pendingTotal ? (
             <div className="alert warn" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
               <span><strong>Bugün tamamlanması gereken {pendingTotal} iş var.</strong> Faturası girilmemiş satışlar ve dağıtılmamış tahsilatlar unutulmasın.</span>
@@ -63,6 +78,7 @@ export function DashboardPage() {
 
 export function PendingPage() {
   const toast = useToast()
+  const { consolidated } = useAuth()
   const [tab, setTab] = useState('sales')
   const { data, error, reload } = useAsync(() => api<PendingWork>('/api/pending-work'), [])
   if (error) return <ErrorBox message={error} />
@@ -95,17 +111,19 @@ export function PendingPage() {
                       <tbody>
                         {data.pendingOpeningBalances.map((o) => (
                           <tr key={o.id}>
-                            <td><Link className="row-link" to={`/cariler/${o.partyId}`}>{o.partyName}</Link></td>
+                            <td>{consolidated ? <><CompanyTag code={o.company} />{' '}</> : null}<Link className="row-link" to={`/cariler/${o.partyId}`}>{o.partyName}</Link></td>
                             <td className="num">{money(Math.abs(Number(o.amount)))} <span className="small muted">{Number(o.amount) > 0 ? 'borçlu' : 'alacaklı'}</span></td>
                             <td className="small">{o.note ?? '—'}</td>
                             <td className="num">
                               <div className="actions" style={{ justifyContent: 'flex-end' }}>
+                                <WriteScope>
                                 <button className="btn small primary" type="button" onClick={async () => {
                                   try { await post(`/api/opening-balances/${o.id}/decide`, { approve: true }); toast('Açılış bakiyesi onaylandı ve cariye yazıldı.'); reload() } catch (e) { toast(errorText(e)) }
                                 }}>Onayla</button>
                                 <button className="btn small ghost" type="button" onClick={async () => {
                                   try { await post(`/api/opening-balances/${o.id}/decide`, { approve: false }); toast('Açılış bakiyesi reddedildi.'); reload() } catch (e) { toast(errorText(e)) }
                                 }}>Reddet</button>
+                                </WriteScope>
                               </div>
                             </td>
                           </tr>
@@ -130,6 +148,7 @@ export function PendingPage() {
 
 export function DocumentsPage() {
   const toast = useToast()
+  const { consolidated, canWrite } = useAuth()
   const { data, error, reload } = useAsync(() => api<DocumentRow[]>('/api/documents'), [])
   const [cancel, setCancel] = useState<DocumentRow | null>(null)
   return (
@@ -151,10 +170,10 @@ export function DocumentsPage() {
                   <tr key={d.id}>
                     <td>{date(d.documentDate)}</td>
                     <td>{d.documentNo}<span className="sub">{docTypeName(d.type)} · {d.direction === 'sale' ? 'satış' : 'alış'} · {d.linkCount} satır</span></td>
-                    <td><Link className="row-link" to={`/cariler/${d.partyId}`}>{d.partyName}</Link></td>
+                    <td>{consolidated ? <><CompanyTag code={d.company} />{' '}</> : null}<Link className="row-link" to={`/cariler/${d.partyId}`}>{d.partyName}</Link></td>
                     <td className="num">{money(d.netTotal)}</td><td className="num">{money(d.vatTotal)}</td><td className="num">{money(d.grossTotal)}</td>
                     <td><StatusBadge status={d.status} />{d.cancelReason ? <span className="sub">{d.cancelReason}</span> : null}</td>
-                    <td className="num">{d.status === 'issued' ? <button type="button" className="btn small ghost" onClick={() => setCancel(d)}>İptal</button> : null}</td>
+                    <td className="num">{d.status === 'issued' && canWrite ? <button type="button" className="btn small ghost" onClick={() => setCancel(d)}>İptal</button> : null}</td>
                   </tr>
                 ))}
               </tbody>
@@ -176,6 +195,7 @@ export function DocumentsPage() {
 // =====================================================================
 
 export function LedgerListPage() {
+  const { consolidated } = useAuth()
   const [partyId, setPartyId] = useState('')
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
@@ -203,7 +223,7 @@ export function LedgerListPage() {
           <div className="row">
             <select className="input" style={{ width: 220 }} aria-label="Cari" value={partyId} onChange={(e) => setPartyId(e.target.value)}>
               <option value="">Tüm cariler</option>
-              {(parties.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              {(parties.data ?? []).map((p) => <option key={p.id} value={p.id}>{consolidated && p.company ? `${p.company} · ${p.name}` : p.name}</option>)}
             </select>
             <Field label="Başlangıç"><input className="input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></Field>
             <Field label="Bitiş"><input className="input" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></Field>
@@ -230,7 +250,7 @@ export function LedgerListPage() {
                 {rows.map((r) => (
                   <tr key={r.id}>
                     <td>{date(r.occurredOn)}</td>
-                    <td><Link className="row-link" to={`/cariler/${r.partyId}`}>{r.partyName}</Link></td>
+                    <td>{consolidated ? <><CompanyTag code={r.company} />{' '}</> : null}<Link className="row-link" to={`/cariler/${r.partyId}`}>{r.partyName}</Link></td>
                     <td>{r.description}</td>
                     <td>{r.isOfficial ? <span className="badge done">Belgelendi</span> : <span className="badge pending">Belge bekliyor</span>}</td>
                     <td className="num">{Number(r.debit) ? money(r.debit) : '—'}</td>
@@ -251,6 +271,7 @@ export function LedgerListPage() {
 // =====================================================================
 
 export function CatalogPage() {
+  const { consolidated, canWrite } = useAuth()
   const [q, setQ] = useState('')
   const [editing, setEditing] = useState<Item | 'new' | null>(null)
   const toast = useToast()
@@ -259,7 +280,7 @@ export function CatalogPage() {
     <>
       <div className="page-head">
         <div><h1>Ürün ve Hizmetler</h1><p className="sub">Stoklu ürünler ve hizmet kalemleri. Fiyat, KDV oranı ve stok durumu.</p></div>
-        <button className="btn primary" type="button" onClick={() => setEditing('new')}>Yeni Kalem</button>
+        <WriteScope><button className="btn primary" type="button" onClick={() => setEditing('new')}>Yeni Kalem</button></WriteScope>
       </div>
       <div className="panel">
         <div className="panel-head">
@@ -269,16 +290,17 @@ export function CatalogPage() {
         {!data ? <Loading /> : data.length === 0 ? <Empty title="Kalem yok">Yeni kalem ekleyin veya Excel'den aktarın.</Empty> : (
           <div className="table-wrap">
             <table>
-              <thead><tr><th>Kalem</th><th>Tür</th><th className="num">Birim fiyat</th><th className="num">KDV</th><th className="num">Stok</th><th><span className="sr-only">İşlemler</span></th></tr></thead>
+              <thead><tr>{consolidated ? <th>Şirket</th> : null}<th>Kalem</th><th>Tür</th><th className="num">Birim fiyat</th><th className="num">KDV</th><th className="num">Stok</th><th><span className="sr-only">İşlemler</span></th></tr></thead>
               <tbody>
                 {data.map((i) => (
                   <tr key={i.id}>
+                    {consolidated ? <td className="company-col"><CompanyTag code={i.company} /></td> : null}
                     <td>{i.name}<span className="sub">{i.code}{!i.isActive ? ' · kullanım dışı' : ''}</span></td>
                     <td>{i.kind === 'stock' ? 'Stok' : 'Hizmet'}</td>
                     <td className="num">{money(i.unitPrice)}<span className="sub">{i.priceIncludesVat ? 'KDV dahil' : 'KDV hariç'}</span></td>
                     <td className="num">{percent(i.vatRate)}</td>
                     <td className="num">{i.kind === 'stock' ? <span className={Number(i.stockOnHand) < 0 ? 'badge danger' : undefined}>{quantity(i.stockOnHand)} {i.unit}</span> : '—'}</td>
-                    <td className="num"><button type="button" className="btn small ghost" onClick={() => setEditing(i)}>Düzenle</button></td>
+                    <td className="num">{canWrite ? <button type="button" className="btn small ghost" onClick={() => setEditing(i)}>Düzenle</button> : null}</td>
                   </tr>
                 ))}
               </tbody>
@@ -356,7 +378,7 @@ function ItemDialog({ item, onClose, onSaved }: { item: Item | 'new' | null; onC
 const cashKindName: Record<string, string> = { cash: 'Kasa', bank: 'Banka', pos: 'POS', credit_card: 'Kredi Kartı', loan: 'Kredi' }
 
 export function CashPage() {
-  const { isAdmin } = useAuth()
+  const { isAdmin, canWrite, consolidated } = useAuth()
   const toast = useToast()
   const { data, error, reload } = useAsync(() => api<CashAccount[]>('/api/cash-accounts'), [])
   const [form, setForm] = useState({ name: '', kind: 'bank', parentAccountId: '' })
@@ -383,9 +405,10 @@ export function CashPage() {
         <div className="panel">
           {!data ? <Loading /> : (
             <table>
-              <thead><tr><th>Hesap</th><th>Tür</th><th className="num">Bakiye</th></tr></thead>
+              <thead><tr>{consolidated ? <th>Şirket</th> : null}<th>Hesap</th><th>Tür</th><th className="num">Bakiye</th></tr></thead>
               <tbody>{ordered.map((a) => (
                 <tr key={a.id}>
+                  {consolidated ? <td className="company-col"><CompanyTag code={a.company} /></td> : null}
                   <td style={{ paddingLeft: a.parentAccountId ? 28 : undefined }}>
                     {a.parentAccountId ? '↳ ' : ''}{a.name}{!a.isActive ? <span className="sub">kullanım dışı</span> : null}
                   </td>
@@ -396,7 +419,7 @@ export function CashPage() {
             </table>
           )}
         </div>
-        {isAdmin ? (
+        {isAdmin && canWrite ? (
           <div className="panel">
             <div className="panel-head"><h2>Yeni hesap</h2></div>
             <div className="panel-body stack">
@@ -468,7 +491,11 @@ export function ReportsPage() {
 }
 
 function CollectionsReport({ from, to, setFrom, setTo }: { from: string; to: string; setFrom: (v: string) => void; setTo: (v: string) => void }) {
-  type R = { rows: { date: string; method: string; account: string; count: number; gross: string; reversed: string; net: string }[]; total: string }
+  type R = {
+    rows: { company: string; date: string; method: string; account: string; count: number; gross: string; reversed: string; net: string }[]
+    total: string; totalsByCompany: { company: string; total: string }[]
+  }
+  const { consolidated } = useAuth()
   const { data, error } = useAsync(() => api<R>(`/api/reports/daily-collections?from=${from}&to=${to}`), [from, to])
   return (
     <div className="stack">
@@ -479,12 +506,17 @@ function CollectionsReport({ from, to, setFrom, setTo }: { from: string; to: str
       <ErrorBox message={error} />
       {!data ? <Loading /> : data.rows.length === 0 ? <Empty title="Bu aralıkta tahsilat yok" /> : (
         <table>
-          <thead><tr><th>Tarih</th><th>Araç</th><th>Hesap</th><th className="num">Adet</th><th className="num">Tahsilat</th><th className="num">İptal</th><th className="num">Net</th></tr></thead>
+          <thead><tr>{consolidated ? <th>Şirket</th> : null}<th>Tarih</th><th>Araç</th><th>Hesap</th><th className="num">Adet</th><th className="num">Tahsilat</th><th className="num">İptal</th><th className="num">Net</th></tr></thead>
           <tbody>{data.rows.map((r, i) => (
-            <tr key={i}><td>{date(r.date)}</td><td>{r.method}</td><td>{r.account}</td><td className="num">{r.count}</td>
+            <tr key={i}>{consolidated ? <td className="company-col"><CompanyTag code={r.company} /></td> : null}<td>{date(r.date)}</td><td>{r.method}</td><td>{r.account}</td><td className="num">{r.count}</td>
               <td className="num">{money(r.gross)}</td><td className="num">{Number(r.reversed) ? money(r.reversed) : '—'}</td><td className="num">{money(r.net)}</td></tr>
           ))}</tbody>
-          <tfoot><tr><td colSpan={6}>Toplam</td><td className="num">{money(data.total)}</td></tr></tfoot>
+          <tfoot>
+            {consolidated ? data.totalsByCompany.map((t) => (
+              <tr key={t.company}><td colSpan={7}><CompanyTag code={t.company} /> toplamı</td><td className="num">{money(t.total)}</td></tr>
+            )) : null}
+            <tr><td colSpan={consolidated ? 7 : 6}>{consolidated ? 'Genel toplam (seçili şirketler)' : 'Toplam'}</td><td className="num">{money(data.total)}</td></tr>
+          </tfoot>
         </table>
       )}
     </div>
@@ -492,7 +524,11 @@ function CollectionsReport({ from, to, setFrom, setTo }: { from: string; to: str
 }
 
 function BalancesReport() {
-  type R = { rows: { id: string; code: string; name: string; kind: string; phone: string | null; balance: string }[]; totalReceivable: string; totalPayable: string }
+  type R = {
+    rows: { company: string; id: string; code: string; name: string; kind: string; phone: string | null; balance: string }[]
+    totalReceivable: string; totalPayable: string; totalsByCompany: { company: string; totalReceivable: string; totalPayable: string }[]
+  }
+  const { consolidated } = useAuth()
   const { data, error } = useAsync(() => api<R>('/api/reports/open-balances'), [])
   if (error) return <ErrorBox message={error} />
   if (!data) return <Loading />
@@ -500,10 +536,15 @@ function BalancesReport() {
     <table>
       <thead><tr><th>Cari</th><th>Telefon</th><th className="num">Borçlu</th><th className="num">Alacaklı</th></tr></thead>
       <tbody>{data.rows.map((r) => (
-        <tr key={r.id}><td><Link className="row-link" to={`/cariler/${r.id}`}>{r.name}</Link><span className="sub">{r.code}</span></td><td>{r.phone ?? '—'}</td>
+        <tr key={r.id}><td>{consolidated ? <><CompanyTag code={r.company} />{' '}</> : null}<Link className="row-link" to={`/cariler/${r.id}`}>{r.name}</Link><span className="sub">{r.code}</span></td><td>{r.phone ?? '—'}</td>
           <td className="num">{Number(r.balance) > 0 ? money(r.balance) : '—'}</td><td className="num">{Number(r.balance) < 0 ? money(-Number(r.balance)) : '—'}</td></tr>
       ))}</tbody>
-      <tfoot><tr><td colSpan={2}>Toplam</td><td className="num">{money(data.totalReceivable)}</td><td className="num">{money(data.totalPayable)}</td></tr></tfoot>
+      <tfoot>
+        {consolidated ? data.totalsByCompany.map((t) => (
+          <tr key={t.company}><td colSpan={2}><CompanyTag code={t.company} /> toplamı</td><td className="num">{money(t.totalReceivable)}</td><td className="num">{money(t.totalPayable)}</td></tr>
+        )) : null}
+        <tr><td colSpan={2}>{consolidated ? 'Genel toplam (seçili şirketler)' : 'Toplam'}</td><td className="num">{money(data.totalReceivable)}</td><td className="num">{money(data.totalPayable)}</td></tr>
+      </tfoot>
     </table>
   )
 }
@@ -534,7 +575,8 @@ function UnallocatedReport() {
 }
 
 function StockReport() {
-  type R = { id: string; code: string; name: string; unit: string; isActive: boolean; stockOnHand: string }[]
+  type R = { company: string; id: string; code: string; name: string; unit: string; isActive: boolean; stockOnHand: string }[]
+  const { consolidated } = useAuth()
   const { data, error } = useAsync(() => api<R>('/api/reports/stock'), [])
   if (error) return <ErrorBox message={error} />
   if (!data) return <Loading />
@@ -542,7 +584,7 @@ function StockReport() {
     <table>
       <thead><tr><th>Kalem</th><th className="num">Mevcut</th></tr></thead>
       <tbody>{data.map((i) => (
-        <tr key={i.id}><td>{i.name}<span className="sub">{i.code}</span></td>
+        <tr key={i.id}><td>{consolidated ? <><CompanyTag code={i.company} />{' '}</> : null}{i.name}<span className="sub">{i.code}</span></td>
           <td className="num">{Number(i.stockOnHand) < 0 ? <span className="badge danger">{quantity(i.stockOnHand)} {i.unit} — eksi stok</span> : `${quantity(i.stockOnHand)} ${i.unit}`}</td></tr>
       ))}</tbody>
     </table>
@@ -552,119 +594,6 @@ function StockReport() {
 // =====================================================================
 // Yonetim
 // =====================================================================
-
-type UserRow = { id: string; userName: string; fullName: string; maxDiscountPercent: string; isActive: boolean; mfaEnabled: boolean; locked: boolean; roles: string[] }
-
-export function UsersPage() {
-  const toast = useToast()
-  const { data, error, reload } = useAsync(() => api<UserRow[]>('/api/users'), [])
-  const [editing, setEditing] = useState<UserRow | 'new' | null>(null)
-  const [resetFor, setResetFor] = useState<UserRow | null>(null)
-  return (
-    <>
-      <div className="page-head">
-        <div><h1>Kullanıcılar</h1><p className="sub">Roller, iskonto sınırları ve erişim. Her kullanıcı iki adımlı doğrulama kurmadan veriye erişemez.</p></div>
-        <button className="btn primary" type="button" onClick={() => setEditing('new')}>Yeni Kullanıcı</button>
-      </div>
-      <ErrorBox message={error} />
-      <div className="panel">
-        {!data ? <Loading /> : (
-          <table>
-            <thead><tr><th>Kullanıcı</th><th>Rol</th><th className="num">İskonto sınırı</th><th>Güvenlik</th><th><span className="sr-only">İşlemler</span></th></tr></thead>
-            <tbody>{data.map((u) => (
-              <tr key={u.id}>
-                <td>{u.fullName}<span className="sub">{u.userName}{!u.isActive ? ' · kapalı' : ''}</span></td>
-                <td>{u.roles.includes('Yonetici') ? 'Yönetici' : 'Muhasebe'}</td>
-                <td className="num">{percent(u.maxDiscountPercent)}</td>
-                <td>{u.mfaEnabled ? <span className="badge done">İki adım açık</span> : <span className="badge pending">İki adım kurulmadı</span>}{u.locked ? <span className="badge danger" style={{ marginLeft: 6 }}>Kilitli</span> : null}</td>
-                <td className="num">
-                  <div className="actions" style={{ justifyContent: 'flex-end' }}>
-                    <button className="btn small ghost" type="button" onClick={() => setEditing(u)}>Düzenle</button>
-                    <button className="btn small ghost" type="button" onClick={() => setResetFor(u)}>Parola</button>
-                    {u.mfaEnabled ? <button className="btn small ghost" type="button" onClick={async () => {
-                      if (!window.confirm(`${u.fullName} için iki adımlı doğrulama sıfırlansın mı? Kullanıcı bir sonraki girişte yeniden kurar.`)) return
-                      try { await post(`/api/users/${u.id}/reset-mfa`); toast('İki adımlı doğrulama sıfırlandı.'); reload() } catch (e) { toast(errorText(e)) }
-                    }}>Doğrulamayı Sıfırla</button> : null}
-                  </div>
-                </td>
-              </tr>
-            ))}</tbody>
-          </table>
-        )}
-      </div>
-      <UserDialog user={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); toast('Kullanıcı kaydedildi.'); reload() }} />
-      <PasswordDialog user={resetFor} onClose={() => setResetFor(null)} onSaved={() => { setResetFor(null); toast('Parola değiştirildi.') }} />
-    </>
-  )
-}
-
-function UserDialog({ user, onClose, onSaved }: { user: UserRow | 'new' | null; onClose: () => void; onSaved: () => void }) {
-  const blank = { userName: '', fullName: '', password: '', role: 'Muhasebe', maxDiscountPercent: '10', isActive: true }
-  const [form, setForm] = useState(blank)
-  const [error, setError] = useState<string | null>(null)
-  const [loadedFor, setLoadedFor] = useState<unknown>(null)
-  if (user !== loadedFor) {
-    setLoadedFor(user); setError(null)
-    setForm(user && user !== 'new' ? { userName: user.userName, fullName: user.fullName, password: '', role: user.roles[0] ?? 'Muhasebe',
-      maxDiscountPercent: String(Number(user.maxDiscountPercent)), isActive: user.isActive } : blank)
-  }
-  const isNew = user === 'new'
-  return (
-    <Dialog open={!!user} onClose={onClose} title={isNew ? 'Yeni kullanıcı' : 'Kullanıcıyı düzenle'}
-      footer={<>
-        <button type="button" className="btn" onClick={onClose}>Vazgeç</button>
-        <button type="button" className="btn primary" onClick={async () => {
-          setError(null)
-          const discount = normalizeNumber(form.maxDiscountPercent)
-          try {
-            if (isNew) await post('/api/users', { ...form, maxDiscountPercent: discount })
-            else await put(`/api/users/${(user as UserRow).id}`, { fullName: form.fullName, role: form.role, maxDiscountPercent: discount, isActive: form.isActive })
-            onSaved()
-          } catch (e) { setError(errorText(e)) }
-        }}>Kaydet</button>
-      </>}>
-      <ErrorBox message={error} />
-      <div className="form-grid">
-        <Field label="Ad soyad" full><input className="input" value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} /></Field>
-        <Field label="Kullanıcı adı"><input className="input" value={form.userName} disabled={!isNew} onChange={(e) => setForm({ ...form, userName: e.target.value })} /></Field>
-        {isNew ? <Field label="Geçici parola" hint="en az 12 karakter"><input className="input" type="password" autoComplete="new-password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></Field> : null}
-        <Field label="Rol">
-          <select className="input" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
-            <option value="Muhasebe">Muhasebe</option><option value="Yonetici">Yönetici</option>
-          </select>
-        </Field>
-        <Field label="İskonto sınırı (%)"><input className="input" inputMode="decimal" value={form.maxDiscountPercent} onChange={(e) => setForm({ ...form, maxDiscountPercent: e.target.value })} /></Field>
-        {!isNew ? (
-          <Field label="Erişim">
-            <select className="input" value={form.isActive ? '1' : '0'} onChange={(e) => setForm({ ...form, isActive: e.target.value === '1' })}>
-              <option value="1">Açık</option><option value="0">Kapalı (tüm oturumlar kapanır)</option>
-            </select>
-          </Field>
-        ) : null}
-      </div>
-    </Dialog>
-  )
-}
-
-function PasswordDialog({ user, onClose, onSaved }: { user: UserRow | null; onClose: () => void; onSaved: () => void }) {
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  return (
-    <Dialog open={!!user} onClose={onClose} title={`Parola değiştir: ${user?.fullName ?? ''}`}
-      footer={<>
-        <button type="button" className="btn" onClick={onClose}>Vazgeç</button>
-        <button type="button" className="btn primary" onClick={async () => {
-          setError(null)
-          try { await post(`/api/users/${user!.id}/password`, { password }); setPassword(''); onSaved() } catch (e) { setError(errorText(e)) }
-        }}>Parolayı Değiştir</button>
-      </>}>
-      <ErrorBox message={error} />
-      <Field label="Yeni parola" hint="en az 12 karakter, en az bir rakam">
-        <input className="input" type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
-      </Field>
-    </Dialog>
-  )
-}
 
 export function AuditPage() {
   type Row = { id: string; occurredAt: string; userName: string | null; action: string; targetType: string; targetId: string | null; summary: string | null }

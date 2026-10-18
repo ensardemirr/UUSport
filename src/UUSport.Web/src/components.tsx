@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { ApiError } from './api'
+import { useAuth } from './auth'
 
 // ---------------- veri yukleme ----------------
 
@@ -94,6 +95,32 @@ const statusText: Record<string, [string, string]> = {
 export function StatusBadge({ status }: { status: string }) {
   const [text, cls] = statusText[status] ?? [status, 'neutral']
   return <span className={`badge ${cls}`}>{text}</span>
+}
+
+// ---------------- yazma kapsami (ADR-012) ----------------
+
+/**
+ * Kayit girmeyi tetikleyen dugmeleri sarar. Birlesik gorunumde veya salt okunur rolde (Ortak) icindeki tum
+ * dugmeler pasif olur. Bu yalniz kolaylik; asil engel sunucudadir (403 read_only_role / 400 company).
+ */
+export function WriteScope({ children }: { children: ReactNode }) {
+  const { canWrite, consolidated } = useAuth()
+  const why = canWrite ? undefined : consolidated ? 'Birleşik görünümde kayıt girilmez; tek şirket seçin.' : 'Bu şirkette rolünüz salt okunur.'
+  return <fieldset className="write-scope" disabled={!canWrite} title={why}>{children}</fieldset>
+}
+
+// ---------------- sirket etiketi (ADR-012) ----------------
+
+/** Sirket kodundan kararli bir ton (0-5). Renk yalniz ayirt etmeye yardim eder; anlam her zaman koddadir. */
+export function companyTone(code: string) {
+  let h = 0
+  for (const ch of code) h = (h * 31 + ch.charCodeAt(0)) >>> 0
+  return h % 6
+}
+
+export function CompanyTag({ code }: { code?: string }) {
+  if (!code) return null
+  return <span className="co-tag" data-tone={companyTone(code)}>{code}</span>
 }
 
 // ---------------- sekmeler (WAI-ARIA tab kalibi) ----------------

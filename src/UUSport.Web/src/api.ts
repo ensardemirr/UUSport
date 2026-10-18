@@ -15,8 +15,16 @@ export class ApiError extends Error {
 
 type Options = { method?: string; body?: unknown; form?: FormData }
 
+// Secili sirketler (ADR-012): her istekte `X-UUSport-Companies` basligi ile gonderilir. Bos ise sunucu
+// kullanicinin ev sirketini secer. Secimi auth.tsx yonetir; baslik burada merkezidir (CSRF basligi gibi).
+let companyHeader = ''
+export function setCompanySelection(ids: string[]) {
+  companyHeader = ids.join(',')
+}
+
 export async function api<T>(path: string, options: Options = {}): Promise<T> {
   const headers: Record<string, string> = { 'X-UUSport-Request': '1' }
+  if (companyHeader) headers['X-UUSport-Companies'] = companyHeader
   let body: BodyInit | undefined
   if (options.form) body = options.form
   else if (options.body !== undefined) {
@@ -57,19 +65,34 @@ export const put = <T>(path: string, body: unknown) => api<T>(path, { method: 'P
 
 // ---------------- tipler ----------------
 
+export type CompanyRole = 'Yonetici' | 'Muhasebe' | 'Ortak'
+
+export type CompanyInfo = {
+  id: string; code: string; name: string; role: CompanyRole; permissions: string[]
+}
+
 export type Me = {
   authenticated: boolean
   userName?: string
   fullName?: string
-  roles?: string[]
+  roles?: CompanyRole[]
+  isGroupAdmin?: boolean
+  isAdmin?: boolean
+  canWrite?: boolean
+  permissions?: string[]
+  companies?: CompanyInfo[]
+  selectedCompanyIds?: string[]
   maxDiscountPercent?: Money
   mfaEnabled?: boolean
   onlyAdmin?: boolean
 }
 
+/** Birlesik gorunumde sunucu her satira sirket kodunu ekler (ADR-012 2.3); tek sirkette de dolu gelir. */
+export type WithCompany = { company?: string }
+
 export type PartyKind = 'customer' | 'supplier' | 'both'
 
-export type PartyListRow = {
+export type PartyListRow = WithCompany & {
   id: string; code: string; name: string; kind: PartyKind; phone: string | null; email: string | null
   isActive: boolean; balance: Money; athletes: string[]
 }
@@ -88,7 +111,7 @@ export type PartyDetail = {
   summary: PartySummary
 }
 
-export type LineRow = {
+export type LineRow = WithCompany & {
   id: string; partyId: string; partyName: string; occurredOn: string; direction: 'sale' | 'purchase'
   itemId: string; itemName: string; itemKind: 'stock' | 'service'
   quantity: Money; unitPrice: Money; discountPercent: Money; vatRate: Money
@@ -103,31 +126,31 @@ export type LedgerRow = {
   debit: Money; credit: Money; balance: Money; isOfficial: boolean
 }
 
-export type LedgerListRow = {
+export type LedgerListRow = WithCompany & {
   id: string; partyId: string; partyName: string; occurredOn: string; sourceType: string; sourceId: string
   description: string; debit: Money; credit: Money; isOfficial: boolean
 }
 
-export type PaymentRow = {
+export type PaymentRow = WithCompany & {
   id: string; partyId: string; partyName: string; occurredOn: string; direction: 'receipt' | 'disbursement'
   method: string; accountName: string; amount: Money; allocatedAmount: Money; unallocatedAmount: Money
   reference: string | null; description: string | null; isReversal: boolean; isReversed: boolean
 }
 
-export type DocumentRow = {
+export type DocumentRow = WithCompany & {
   id: string; partyId: string; partyName: string; direction: 'sale' | 'purchase'; type: string
   documentNo: string; documentDate: string; netTotal: Money; vatTotal: Money; grossTotal: Money
   status: 'issued' | 'cancelled'; cancelReason: string | null; linkCount: number
 }
 
-export type Item = {
+export type Item = WithCompany & {
   id: string; code: string; name: string; kind: 'stock' | 'service'; unit: string; unitPrice: Money
   priceIncludesVat: boolean; vatRate: Money; accountCode: string | null; isActive: boolean; stockOnHand: Money | null
 }
 
 export type CashAccountKind = 'cash' | 'bank' | 'pos' | 'credit_card' | 'loan'
 
-export type CashAccount = {
+export type CashAccount = WithCompany & {
   id: string; name: string; kind: CashAccountKind; isActive: boolean; balance: Money
   parentAccountId: string | null; parentAccountName: string | null
 }
@@ -136,7 +159,7 @@ export type PendingWork = {
   salesAwaitingInvoice: LineRow[]
   purchasesAwaitingInvoice: LineRow[]
   unallocatedPayments: PaymentRow[]
-  pendingOpeningBalances: { id: string; partyId: string; partyName: string; amount: Money; note: string | null; importBatchId: string | null }[]
+  pendingOpeningBalances: (WithCompany & { id: string; partyId: string; partyName: string; amount: Money; note: string | null; importBatchId: string | null })[]
 }
 
 // ---------------- surum 2 hazirlik notu: kredi ve cek ----------------

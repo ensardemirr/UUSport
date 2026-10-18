@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { api, post, type CashAccount, type CheckRow, type CheckSeriesRow, type LoanInstallmentRow, type LoanRow, type PartyListRow } from '../api'
-import { Dialog, Empty, ErrorBox, Field, Loading, ReasonDialog, Tabs, errorText, useAsync, useToast } from '../components'
+import { useAuth } from '../auth'
+import { Dialog, Empty, ErrorBox, Field, Loading, ReasonDialog, Tabs, WriteScope, errorText, useAsync, useToast } from '../components'
 import { date, money, normalizeNumber, today } from '../format'
 
 // =====================================================================
@@ -20,7 +21,7 @@ export function LoansPage() {
         <div><h1>Krediler</h1><p className="sub">Taksit tablosu ve ödeme takibi. Taksit ödemesi ilgili banka hesabından yapılır.</p></div>
         <div className="actions">
           <Link className="btn" to="/kasa-banka">Kasa ve Banka</Link>
-          <button className="btn primary" type="button" onClick={() => setCreating(true)}>Yeni Kredi</button>
+          <WriteScope><button className="btn primary" type="button" onClick={() => setCreating(true)}>Yeni Kredi</button></WriteScope>
         </div>
       </div>
       <ErrorBox message={error} />
@@ -161,6 +162,7 @@ function CreateLoanDialog({ open, onClose, onSaved }: { open: boolean; onClose: 
 }
 
 function LoanInstallmentsDialog({ loan, onClose, onPaid }: { loan: LoanRow | null; onClose: () => void; onPaid: () => void }) {
+  const { canWrite } = useAuth()
   const { data, reload } = useAsync(() => loan ? api<LoanInstallmentRow[]>(`/api/loans/${loan.id}/installments`) : Promise.resolve([]), [loan?.id])
   const [paying, setPaying] = useState<LoanInstallmentRow | null>(null)
 
@@ -176,7 +178,7 @@ function LoanInstallmentsDialog({ loan, onClose, onPaid }: { loan: LoanRow | nul
                 <td className="num">{money(i.principalAmount)}</td><td className="num">{money(i.interestAmount)}</td><td className="num">{money(i.feeAmount)}</td>
                 <td className="num">{money(i.totalAmount)}</td>
                 <td>{i.isPaid ? <span className="badge done">Ödendi</span> : <span className="badge pending">Bekliyor</span>}</td>
-                <td className="num">{!i.isPaid ? <button className="btn small" type="button" onClick={() => setPaying(i)}>Öde</button> : null}</td>
+                <td className="num">{!i.isPaid && canWrite ? <button className="btn small" type="button" onClick={() => setPaying(i)}>Öde</button> : null}</td>
               </tr>
             ))}</tbody>
           </table>
@@ -252,7 +254,7 @@ export function ChecksPage() {
     <>
       <div className="page-head">
         <div><h1>Çek Portföyü</h1><p className="sub">Alınan ve verilen çekler. Tahsil edilen çek, cariye otomatik tahsilat olarak işlenir.</p></div>
-        <button className="btn primary" type="button" onClick={() => setCreating(true)}>Çek Gir</button>
+        <WriteScope><button className="btn primary" type="button" onClick={() => setCreating(true)}>Çek Gir</button></WriteScope>
       </div>
       <ErrorBox message={error} />
       <div className="panel">
@@ -278,6 +280,7 @@ export function ChecksPage() {
                           {c.statusNote ? <span className="sub">{c.statusNote}</span> : null}</td>
                         <td className="num">
                           <div className="actions" style={{ justifyContent: 'flex-end' }}>
+                            <WriteScope>
                             {c.status === 'in_portfolio' ? <>
                               <button className="btn small ghost" type="button" onClick={async () => {
                                 try { await post(`/api/checks/${c.id}/submit-for-collection`); toast('Tahsile verildi.'); reload() } catch (e) { toast(errorText(e)) }
@@ -292,6 +295,7 @@ export function ChecksPage() {
                             {c.status !== 'bounced' ? (
                               <button className="btn small ghost" type="button" onClick={() => setBouncing(c)}>Karşılıksız</button>
                             ) : null}
+                            </WriteScope>
                           </div>
                         </td>
                       </tr>
