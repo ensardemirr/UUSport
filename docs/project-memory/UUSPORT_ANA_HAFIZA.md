@@ -1,6 +1,6 @@
 # UU Sport Ana Hafiza
 
-**Surum:** 3.9  
+**Surum:** 3.10  
 **Olusturma tarihi:** 23 Eylul 2026  
 **Son guncelleme:** 17 Ekim 2026  
 **Ilk yazar:** Codex  
@@ -64,6 +64,33 @@ anahtari veya gercek ogrenci/veli verisi icermez.
   alindi, gecici veritabanina geri yuklendi (4 migration, 1 kullanici), gecici veritabani silindi; deneme yedegi
   parolasi atildigi icin dosya silindi. **Zamanlanmis gorev kurulmadi.** `[ACIK]` Uzak yedek konumu
   (`-OffsiteDir`) ve yedek parolasinin saklanacagi yer karari bekliyor; WAL/PITR ve belge klasoru yedegi yapilmadi.
+- `[ACIK]` 18-19 Ekim 2026, canliya alma ve RDP: kullanici gercek veriyi girip test etmek istiyor ve canli
+  icin **RDP kiralamayi** dusunuyor (3-5 kullanici, butce kisitli). Onceki "ilk canli mevcut normal Windows
+  bilgisayar" karari (bolum 0, 8.1) bununla yeniden degerlendirilecek; kesin karar yok.
+- `[ONERI]` RDP konfigurasyonu (Claude, fiyatlar arastirilmadi): en az 2 vCPU / 4 GB / 60-80 GB SSD, onerilen
+  **4 vCPU / 8 GB / 100 GB NVMe**, Windows Server (lisans dahil), **Turkiye'de veri merkezi**, sabit IPv4,
+  saglayici snapshot'i + yurt ici ayri yedek alani. Disariya yalniz 443; 5432 asla; RDP yalniz kullanici IP'si
+  veya VPN. Internete acik kurulum icin **alan adi + TLS sertifikasi zorunlu** (sirketin alan adi yok, bolum 0).
+  Butce zorlanirsa Linux VPS secenegi: uygulama Linux'ta calisiyor (M1.5 testleri Linux'ta kostu) ama betikler
+  PowerShell/DPAPI'ye gore yazildi; gecis ayri karar ve ~1-2 gunluk is (ADR gerektirebilir).
+- `[ONERI]` Mevcut hedef bilgisayar (i3, 8 GB) icinde sanal makine **yetersiz**; o bilgisayar kullanilacaksa
+  sanal makinesiz dogrudan kurulum veya 16 GB RAM. Ofis bilgisayari sunucu olursa UPS, BitLocker, otomatik
+  baslatma zorunlu (prosedur 4.3).
+- `[ONERI]` Canli oncesi kalan isler (tahmini ~1 hafta, kararlar geldikten sonra): S-18 surum paketi + Windows
+  servisi + kurulum/guncelleme betikleri (1,5-2 gun, baslanmadi); S-10 yedek gorevi kurulumu + geri yukleme
+  provasi (0,5 gun; betikler hazir); coklu erisimde S-11 HTTPS + guvenlik duvari (0,5-1 gun); temiz makinede
+  kurulum provasi (0,5 gun); kurulum gunu acilis bakiyeleri ve ikinci grup yoneticisi. Calisma dali once
+  `master`'a birlestirilir, paket oradan uretilir. Gercek veri yalniz canliya girilir (gelistirmeye degil);
+  kaynak Excel'ler once repo disina tasinir (S-16).
+- `[ONERI]` Canli makinede gerekenler: Windows Pro/Server, PostgreSQL 18 x64 (servis), .NET 10 ASP.NET Core
+  Runtime (SDK degil), UU Sport paketi, yedek hedefi (harici disk/uzak alan), UPS (fiziksel makinede).
+  Istemcide guncel Edge/Chrome ve telefonda Microsoft/Google Authenticator. Gerekmez: Node.js, .NET SDK,
+  VS Code, Git, Python. Istege bagli: pgAdmin. Kurulum dosyalari surum + SHA256 ile teslim edilir (prosedur 13).
+- `[ACIK]` Kullanicidan beklenen: canli hedef (RDP mi, mevcut bilgisayar mi), erisecek kisi/bilgisayar sayisi,
+  yedek konumu ve yedek parolasinin saklanacagi yer, alan adi, hedef tarih (Kasim ilk hafta?).
+- `[DOGRU]` Kullaniciya aciklandi: yeni surumler kayitlari silmez; migration'lar ekleyicidir, yikici DDL ayni
+  surumde yapilmaz, her surum oncesi yedek alinir. `tools/demo/reset-demo.ps1` yalniz `uusport_ui` deneme
+  veritabanini sifirlar; canliya konmaz ve canlida calistirilmaz.
 - `[KARAR]` Gunluk guncel ogrenci aktariminin tek kaynagi Excel'deki `Sayfa1 (2)`
   sayfasidir. Benzer isimli sayfalar otomatik birlestirilmeyecek.
 - `[KARAR]` Gercek cocuk, sporcu ve veli verisi gelistirme/test ortamlarina veya
@@ -716,6 +743,7 @@ Ayrintili standart:
 
 | Tarih | Surum | Yazan | Degisiklik |
 |---|---:|---|---|
+| 19.10.2026 | 3.10 | Claude Code | Canliya alma ve RDP konusmasi kaydedildi (bolum 0): RDP konfigurasyon onerisi, alan adi zorunlulugu, Linux secenegi, 8 GB'lik hedefte sanal makinenin yetersizligi, canli oncesi is listesi ve canli makinede gereken programlar `[ONERI]`; kullanici kararlari `[ACIK]`. Fiyat arastirmasi yapilmadi. |
 | 18.10.2026 | 3.9 | Claude Code | `[KULLANICI KARARI]` Nakit akisina aylik tahsilat/gider, kredi karti, vergi/KDV, maas, SGK, kira eklenmesi istendi. Uygulandi: migration `M4PlannedCashItems` + `M4PlannedCashItemsSecurity` (`finance.planned_cash_item`, RLS v2; `finance.cash_account.payment_due_day`). Sirket basina kalici **planli kalemler** (maas, SGK, muhtasar, kira, gecici vergi, KDV, diger gider, beklenen tahsilat; gun + tekrar araligi) `GET/POST/PUT /api/planned-cash-items`; tahmin bunlari, kart borcunu son odeme gununde ve **KDV'yi gecen ay ve bu ayin faturalarindan** (satis KDV - alis KDV, devreden mahsup, izleyen ayin 28'i) kullanir. `[ONERI]` KDV ve odeme gunleri varsayimi mali musavirle teyit edilmeli. Deneme ortami: `tools/demo/reset-demo.ps1` (`uusport_ui`, 5081) uc sirketli sentetik veri, gecmis 3 ay satis/alis/fatura/tahsilat, kredi, kart, cek ve **grup ici fatura + para transferi** (karsilikli elle girilir; ADR-012 2.5 onay kuyrugu ve `intercompany_link` henuz yok). Not: `.claude/hooks/koruma.ps1` Migrations klasorunde yeni uretilen dosyanin duzenlenmesini de engelliyor; RLS bu yuzden ayri migration ile eklendi. 83 test yesil. |
 | 18.10.2026 | 3.8 | Claude Code | `[KULLANICI KARARI]` Nakit akisi on calismasi (M4'un kucuk parcasi) one alindi; icerik kararini kullanici Claude'a birakti, sonra degisiklik isteyecek. Uygulandi: `GET /api/reports/cash-forecast` (`CashForecastService`) + `Rapor > Nakit Akisi` ekrani. Kapsam: acilis = kasa/banka/POS bakiyesi; giris = portfoydeki alinan cekler; cikis = odenmemis kredi taksitleri ve verilen cekler; vadesi gecmis ayri sutun; vadesiz acik alacak/borc kullanici oraniyla ilk aya; aylik sabit gelir/gider varsayimi yalniz toplu tabloda. Sirket bazinda veya toplu gorunum, ilk nakit acigi uyarisi, vadeli kalem listesi. Vergi, maas, kira, SGK, kredi karti ekstresi henuz yok (ADR-010/011, M4). 83 test yesil. |
 | 18.10.2026 | 3.7 | Claude Code | **M1.5 web arayuzu tamamlandi** (sirket secici, birlesik gorunum, yetkiye gore menu, Kullanicilar uyelik duzenleme, Sirketler sayfasi, sirket sutunlari ve kirilim satirlari). `[DOGRU]` kullanici 3 sirketli sentetik veriyle tarayicida dogruladi. Kalan M1.5: grup ici islemler, fazla tahsilat aktarimi, tedarikci kodu uclari, standart belgeleri (devir notu bolum 3). Kullanici nakit akisi ve ileri ay simulasyonunun yoklugunu fark etti: bu M4'tur (baslanmadi). |
