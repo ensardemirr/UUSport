@@ -1,8 +1,8 @@
 # UU Sport Ana Hafiza
 
-**Surum:** 3.10  
+**Surum:** 3.11  
 **Olusturma tarihi:** 23 Eylul 2026  
-**Son guncelleme:** 17 Ekim 2026  
+**Son guncelleme:** 15 Kasim 2026  
 **Ilk yazar:** Codex  
 **Durum:** Surum 0.1 gelistirme ortaminda calisiyor; M0 tamamlandi, M1 buyuk olcude tamamlandi (kalanlar bolum 11). Siradaki: M1 kalanlari, **M1.5 coklu sirket (ADR-012, onayli)** ve M2. Canli kurulum yok.
 
@@ -12,6 +12,34 @@ anahtari veya gercek ogrenci/veli verisi icermez.
 
 ## 0. Hizli Durum
 
+- `[KARAR]` 15 Kasim 2026, **ADR-019 sevk.pro birlesmesi**: UU Sport ve sevk.pro tek urun oldu; **projenin
+  adi sevk.pro**, "UU Sport" ilk musteri grubunun adidir. Arka uc C# kalir (ADR-001 gecerli), web React,
+  mobil React Native; Rust ve TypeScript arka uc reddedildi. Tek depo, ortak cekirdek (saha modulu kodu
+  baslarken cikarilir). **Kiraci = tuzel kisi, ustunde musteri (grup) katmani.** Tek kurulum, tek surum,
+  ic yonetim paneli; musteriye ozel kod yok. Destek icin "musteri gozuyle goruntule" (salt okunur, onayli,
+  kayitli). Dagitim firmasinin on muhasebesi bu sisteme gecer (dorduncu sirket); pilot ERP'siz calisir, Logo
+  aktarimi ilk surumden cikar, stok cok ambarli olur. Tek dogruluk kaynagi **repo**. Ilk canliya kadar
+  yapisal tasima ve koddaki ad degisikligi **dondurulur**. Onayli 37 adimlik liste ve acik konular:
+  `docs/decisions/ADR-019_SEVKPRO_BIRLESME_VE_PLATFORM_YAPISI.md`. sevk.pro belgeleri simdilik
+  `C:\Sevk.Pro` (git'e alindi).
+- `[KARAR]` 15 Kasim 2026: **"Kasim 2026" canli tarihi birakildi** (KU-4'un tarih kismi gecersiz; paralel
+  calismasiz gecis karari duruyor). Yeni tarih canli makine kararindan sayilir. Alan adi: **sevk.pro alt
+  alan adi** (alan adi GoDaddy'de kayitli; "sirketin alan adi yok" satiri bununla asildi). Yedek: simdilik
+  **ayni makinede**, kullanici elle disari alir; sonra bulut alanina tasinir (`[RISK]` ayni makinedeki yedek
+  disk/makine kaybinda korumaz). Git: ajan commit, push ve testler yesilse `master` birlestirmesi yapabilir.
+- `[KULLANICI KARARI]` 15 Kasim 2026: **ilk canli bu makineye (`BAKON-DEV01`) kurulacak**; kullanicinin
+  elinde baska makine yok. Bu, "gelistirme ve canli ayri makinede" kararlarini (asagida, bolum 3.2 ve 8.1)
+  ilk canli icin gecersiz kilar; ayrim ayni makinede mantiksal olarak korunur: canli icin **ayri PostgreSQL
+  kumesi/portu, ayri veritabani ve roller, ayri servis hesabi ve klasorler**; gelistirme ve test
+  veritabanlari canli veriye hic baglanmaz. **Claude ve Codex canli veritabanina sorgu atmaz, canli veri
+  klasorunu ve yedeklerini okumaz** (guvenlik standardi 10 bu haliyle surer); gercek veriyi yalniz kullanici
+  tarayicidan girer.
+- `[RISK]` Ayni makinede canli: (1) ajanlar `Ensaradmin` (yonetici) oturumunda calisir; yukaridaki ayrim
+  teknik engel degil **kuraldir**, ayri Windows hesabi ve klasor izinleriyle sertlestirilmelidir. (2) `[DOGRU]`
+  makine Windows Server 2025 Standard **Evaluation**, 15.11.2026 itibariyla **82 gun** kaldi (yaklasik
+  5 Subat 2027); sure bitmeden lisans alinmali veya canli baska makineye tasinmalidir. (3) Yedek ayni
+  makinede; makine/disk kaybi veriyi de yedegi de goturur, kullanicinin elle disari almasi sarttir.
+  `[DOGRU]` Donanim: 16 GB RAM, 6 mantiksal islemci, C: 70 GB bos.
 - `[DOGRU]` Proje koku: `C:\UUSport`
 - `[DOGRU]` VS Code bu klasorde acik ve calisma alani guvenilir.
 - `[DOGRU]` Klasor ayri bir Obsidian kasasi olarak tanimli.
@@ -743,6 +771,7 @@ Ayrintili standart:
 
 | Tarih | Surum | Yazan | Degisiklik |
 |---|---:|---|---|
+| 15.11.2026 | 3.11 | Claude Code | `[KULLANICI KARARI]` Tasarim oturumu: UU Sport ve sevk.pro birlestirildi, **ADR-019** yazildi (proje adi sevk.pro, arka uc C#, tek depo + ortak cekirdek, kiraci = tuzel kisi + grup katmani, tek kurulum ve ic yonetim paneli, destek goruntuleme, dagitim firmasi dorduncu sirket, tek dogruluk kaynagi repo, 37 adimlik liste). Kasim canli tarihi birakildi; alan adi sevk.pro alt alan adi; yedek simdilik ayni makinede; git yetkisi verildi. `C:\Sevk.Pro` git'e alindi ve `CLAUDE.md`'si guncellendi. Calisma dali `master`'a birlestirildi. Kod degisikligi yok. |
 | 19.10.2026 | 3.10 | Claude Code | Canliya alma ve RDP konusmasi kaydedildi (bolum 0): RDP konfigurasyon onerisi, alan adi zorunlulugu, Linux secenegi, 8 GB'lik hedefte sanal makinenin yetersizligi, canli oncesi is listesi ve canli makinede gereken programlar `[ONERI]`; kullanici kararlari `[ACIK]`. Fiyat arastirmasi yapilmadi. |
 | 18.10.2026 | 3.9 | Claude Code | `[KULLANICI KARARI]` Nakit akisina aylik tahsilat/gider, kredi karti, vergi/KDV, maas, SGK, kira eklenmesi istendi. Uygulandi: migration `M4PlannedCashItems` + `M4PlannedCashItemsSecurity` (`finance.planned_cash_item`, RLS v2; `finance.cash_account.payment_due_day`). Sirket basina kalici **planli kalemler** (maas, SGK, muhtasar, kira, gecici vergi, KDV, diger gider, beklenen tahsilat; gun + tekrar araligi) `GET/POST/PUT /api/planned-cash-items`; tahmin bunlari, kart borcunu son odeme gununde ve **KDV'yi gecen ay ve bu ayin faturalarindan** (satis KDV - alis KDV, devreden mahsup, izleyen ayin 28'i) kullanir. `[ONERI]` KDV ve odeme gunleri varsayimi mali musavirle teyit edilmeli. Deneme ortami: `tools/demo/reset-demo.ps1` (`uusport_ui`, 5081) uc sirketli sentetik veri, gecmis 3 ay satis/alis/fatura/tahsilat, kredi, kart, cek ve **grup ici fatura + para transferi** (karsilikli elle girilir; ADR-012 2.5 onay kuyrugu ve `intercompany_link` henuz yok). Not: `.claude/hooks/koruma.ps1` Migrations klasorunde yeni uretilen dosyanin duzenlenmesini de engelliyor; RLS bu yuzden ayri migration ile eklendi. 83 test yesil. |
 | 18.10.2026 | 3.8 | Claude Code | `[KULLANICI KARARI]` Nakit akisi on calismasi (M4'un kucuk parcasi) one alindi; icerik kararini kullanici Claude'a birakti, sonra degisiklik isteyecek. Uygulandi: `GET /api/reports/cash-forecast` (`CashForecastService`) + `Rapor > Nakit Akisi` ekrani. Kapsam: acilis = kasa/banka/POS bakiyesi; giris = portfoydeki alinan cekler; cikis = odenmemis kredi taksitleri ve verilen cekler; vadesi gecmis ayri sutun; vadesiz acik alacak/borc kullanici oraniyla ilk aya; aylik sabit gelir/gider varsayimi yalniz toplu tabloda. Sirket bazinda veya toplu gorunum, ilk nakit acigi uyarisi, vadeli kalem listesi. Vergi, maas, kira, SGK, kredi karti ekstresi henuz yok (ADR-010/011, M4). 83 test yesil. |
