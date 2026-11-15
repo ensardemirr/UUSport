@@ -10,7 +10,8 @@
 #>
 param(
     [Parameter(Mandatory = $true)][string]$BackupDir,
-    [string]$PgBin = "C:\Program Files\PostgreSQL\18\bin"
+    [string]$PgBin = "C:\Program Files\PostgreSQL\18\bin",
+    [int]$Port = 5432
 )
 
 # 'Stop' kullanilmaz: Windows PowerShell 5.1'de native araclarin (dropdb/psql vb.) stderr'e yazdigi
@@ -67,9 +68,9 @@ try {
     if (-not $dumpFile) { throw "Yedek icinde .dump dosyasi bulunamadi (sifre yanlis olabilir)." }
 
     $env:PGPASSWORD = Read-SuperuserCredential
-    & "$PgBin\createdb.exe" -h 127.0.0.1 -U postgres $dbName
+    & "$PgBin\createdb.exe" -h 127.0.0.1 -p $Port -U postgres $dbName
     if ($LASTEXITCODE -ne 0) { throw "createdb basarisiz" }
-    & "$PgBin\pg_restore.exe" -h 127.0.0.1 -U postgres -d $dbName --no-owner --no-privileges $dumpFile.FullName
+    & "$PgBin\pg_restore.exe" -h 127.0.0.1 -p $Port -U postgres -d $dbName --no-owner --no-privileges $dumpFile.FullName
     if ($LASTEXITCODE -ne 0) { throw "pg_restore basarisiz (kod $LASTEXITCODE)" }
 
     # Temel butunluk: migration gecmisi var mi ve en az bir tenant/kullanici kaydi geri geldi mi.
@@ -78,7 +79,7 @@ try {
     $sqlFile = Join-Path $work 'check.sql'
     Set-Content -LiteralPath $sqlFile -Encoding ASCII -Value `
         'SELECT (SELECT count(*) FROM "__EFMigrationsHistory") || ''|'' || (SELECT count(*) FROM identity.app_user);'
-    $check = & "$PgBin\psql.exe" -h 127.0.0.1 -U postgres -d $dbName -t -A -f $sqlFile
+    $check = & "$PgBin\psql.exe" -h 127.0.0.1 -p $Port -U postgres -d $dbName -t -A -f $sqlFile
     Remove-Item Env:\PGPASSWORD
     if (-not $check) { throw "Butunluk sorgusu bos dondu (yukaridaki hataya bakin)." }
     $parts = ($check -join '').Trim().Split('|')
@@ -88,7 +89,7 @@ try {
 } finally {
     if ($env:PGPASSWORD) { Remove-Item Env:\PGPASSWORD -ErrorAction SilentlyContinue }
     $env:PGPASSWORD = Read-SuperuserCredential
-    & "$PgBin\dropdb.exe" -h 127.0.0.1 -U postgres --if-exists $dbName 2>$null
+    & "$PgBin\dropdb.exe" -h 127.0.0.1 -p $Port -U postgres --if-exists $dbName 2>$null
     Remove-Item Env:\PGPASSWORD -ErrorAction SilentlyContinue
     Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
 }

@@ -23,7 +23,9 @@
 param(
     [string]$OffsiteDir,
     [string]$LocalDir = "$env:LOCALAPPDATA\UUSport\backups",
-    [string]$Database = "uusport"
+    [string]$Database = "uusport",
+    # Canli kurulum ayri kumede/portta calisir (scripts/canli/kur.ps1); gelistirme 5432'dir.
+    [int]$Port = 5432
 )
 
 # 'Stop' kullanilmaz: Windows PowerShell 5.1'de native araclarin stderr'e yazdigi zararsiz NOTICE
@@ -80,7 +82,7 @@ function Read-SuperuserCredential {
 Write-Host "== Veritabani dump aliniyor: $Database ==" -ForegroundColor Cyan
 $env:PGPASSWORD = Read-SuperuserCredential
 $dumpFile = Join-Path $workDir "$Database.dump"
-& "C:\Program Files\PostgreSQL\18\bin\pg_dump.exe" -h 127.0.0.1 -U postgres -Fc -f $dumpFile $Database
+& "C:\Program Files\PostgreSQL\18\bin\pg_dump.exe" -h 127.0.0.1 -p $Port -U postgres -Fc -f $dumpFile $Database
 if ($LASTEXITCODE -ne 0) { throw "pg_dump basarisiz (kod $LASTEXITCODE)" }
 Remove-Item Env:\PGPASSWORD
 

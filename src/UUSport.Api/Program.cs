@@ -24,7 +24,15 @@ using UUSport.Api.Infrastructure;
 [assembly: System.Runtime.Versioning.SupportedOSPlatform("windows")]
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("UUSport.Tests")]
 
-var builder = WebApplication.CreateBuilder(args);
+// Windows servisi olarak calisirken (canli kurulum, S-18) calisma dizini System32'dir; icerik koku
+// uygulamanin kendi klasorune sabitlenir, yoksa wwwroot ve appsettings.json bulunamaz.
+var runsAsService = Microsoft.Extensions.Hosting.WindowsServices.WindowsServiceHelpers.IsWindowsService();
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    ContentRootPath = runsAsService ? AppContext.BaseDirectory : null,
+});
+if (runsAsService) builder.Services.AddWindowsService(o => o.ServiceName = "sevk.pro API");
 var dbOptions = builder.Configuration.GetSection("Database").Get<DatabaseOptions>() ?? new DatabaseOptions();
 
 // ---------------------------------------------------------------------------
