@@ -98,6 +98,23 @@ hesaplari ayridir. UAT veya TEST, PROD veritabanina baglanamaz.
 - PostgreSQL yine yalniz localhost veya ozel agdan dinler; 5432 internete acilmaz.
 - Bu yerlesim baslangic/pilot icin uygundur; kaynak kullanimi ve yedekler izlenir.
 
+### 4.1A Ilk canli gelistirme makinesinde (15 Kasim 2026, ADR-019)
+
+`[KULLANICI KARARI]` Ilk canli `BAKON-DEV01` uzerine kurulur; 4.1'deki "gelistirme RDP'si canli hedef
+degildir" maddesi ilk canli icin gecersizdir. Ayrim ayni makinede su sekilde korunur
+(`scripts/canli/kur.ps1`):
+
+- Ortam basina ayri Windows hesabi (`sevkpro_canli`); parolasi rastgeledir ve hicbir yere yazilmaz.
+  Veritabani parolalari, oturum anahtarlari ve PostgreSQL verisi bu hesabin profiline kilitlidir.
+- Ayri PostgreSQL kumesi ve portu (canli 5433, prova 5434; gelistirme 5432), yalniz `127.0.0.1`.
+- Uygulama `C:\SevkPro\canli` altinda Windows servisi olarak calisir (`127.0.0.1:5090`); klasore yalniz
+  Administrators, SYSTEM ve servis hesabi erisir.
+- Claude ve Codex canli veritabanina, canli klasorune ve yedeklere dokunmaz. Kurulum, guncelleme ve
+  yedek parolasi komutlarini kullanici yonetici PowerShell'de calistirir.
+- Yedek: her gece 02:00 `C:\SevkPro\canli\yedekler` (sifreli), Pazar 03:00 geri yukleme provasi. Yedek
+  ayni makinededir; kullanici duzenli olarak disari kopyalar (`[RISK]`, ana hafiza bolum 0).
+- Once `-Ortam prova` ile kurulum denenir, `kaldir.ps1 -Ortam prova` ile kaldirilir, sonra canli kurulur.
+
 ### 4.2 Iki RDP/VDS
 
 - `APP01`: API, web, masaustu dagitim servisi ve zamanlanmis uygulama isleri.
@@ -171,9 +188,12 @@ Kopyalama islemi hedefteki fazla dosyalari otomatik silen ayna modu kullanmaz.
 veritabaninda da), gizli bilgi taramasi, gercek veri/yasakli klasor taramasi, NuGet ve
 npm bagimlilik acik taramasi. `-Fast` bayragiyla yalniz derleme + taramalar calisir
 (commit-oncesi kanca icin). Kanca kurulumu: `scripts/install-git-hooks.ps1` (elle, bir
-kez calistirilir; `.git/hooks` izlenmez). Yukaridaki paket/manifest standardini
-uygulayan bir `scripts/release.ps1` ve Windows servis kurulum betikleri (S-18) henuz
-yazilmadi; bu bolumdeki standart hala hedeftir, otomasyonu degil.
+kez calistirilir; `.git/hooks` izlenmez). `[DOGRU]` 15-16 Kasim 2026 (S-18):
+`scripts/release.ps1` paketi uretir (`app/`, `kurulum/`, `manifest.json`, `checksums.sha256`; var olan
+surum klasorunun ustune yazmaz, commit edilmemis kodla calismaz). Kurulum betikleri `scripts/canli/`
+altindadir ve pakete `kurulum/` olarak girer: `kur.ps1`, `guncelle.ps1`, `yedek-parolasi.ps1`,
+`kaldir.ps1` (yalniz prova). Paketteki `database/01..04` alt klasorleri yerine migration, uygulamanin
+`migrate` komutuyla servis hesabi altinda uygulanir; ayri precheck/verify SQL paketi henuz yoktur.
 
 ## 7. Canliya alma kapilari
 
