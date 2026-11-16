@@ -192,7 +192,8 @@ public static class AuthEndpoints
             return Results.Ok(new { ok = true });
         });
 
-        auth.MapGet("/me", async (HttpContext http, UserManager<AppUser> users, AppDbContext db, CompanyAccess access) =>
+        auth.MapGet("/me", async (HttpContext http, UserManager<AppUser> users, AppDbContext db, CompanyAccess access,
+            IHostEnvironment hostEnv, IConfiguration config) =>
         {
             var user = await users.GetUserAsync(http.User);
             if (user is null || !user.IsActive) return Results.Ok(new { authenticated = false });
@@ -217,6 +218,10 @@ public static class AuthEndpoints
                 maxDiscountPercent = user.MaxDiscountPercent,
                 mfaEnabled = user.TwoFactorEnabled,
                 onlyAdmin,
+                // Ortam etiketi ekrana sabit yazilmaz: canlida "gelistirme ortami" yazisi cikmamalidir.
+                // Kurulum betigi prova icin Ortam__Ad=prova verir; verilmemis Production kurulumu canli sayilir.
+                environment = hostEnv.IsDevelopment() ? "gelistirme" : (config["Ortam:Ad"] ?? "canli"),
+                version = typeof(AuthEndpoints).Assembly.GetName().Version?.ToString(3),
             });
         });
 

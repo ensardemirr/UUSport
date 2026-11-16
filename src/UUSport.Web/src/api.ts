@@ -85,6 +85,9 @@ export type Me = {
   maxDiscountPercent?: Money
   mfaEnabled?: boolean
   onlyAdmin?: boolean
+  /** Kurulu ortam: 'gelistirme' | 'prova' | 'canli' (sunucu belirler). */
+  environment?: string
+  version?: string
 }
 
 /** Birlesik gorunumde sunucu her satira sirket kodunu ekler (ADR-012 2.3); tek sirkette de dolu gelir. */

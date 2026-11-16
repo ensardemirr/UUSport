@@ -148,13 +148,17 @@ export function Layout() {
             {isAdmin && can('audit.read') ? link('/yonetim/denetim', 'Denetim Kaydı') : null}
           </>
         )) : null}
-        <div className="sidebar-foot">Sürüm 0.1 · Faz 1 (yerel ağ)</div>
+        <div className="sidebar-foot">{me?.version ? `Sürüm ${me.version}` : ''}</div>
       </aside>
       <div className="main">
         <header className="topbar">
           <CompanySwitcher />
           <div className="who">
-            <span className="muted small env-note">Geliştirme ortamı — yalnız sentetik veri</span>
+            {me?.environment === 'gelistirme' || me?.environment === 'prova' ? (
+              <span className="muted small env-note">
+                {me.environment === 'prova' ? 'Prova ortamı' : 'Geliştirme ortamı'} — yalnız sentetik veri
+              </span>
+            ) : null}
             <span>{me?.fullName} <span className="muted small">({me?.isGroupAdmin ? 'Grup yöneticisi' : (me?.roles ?? []).map((r) => ROLE_LABEL[r] ?? r).join(' / ')})</span></span>
             <button type="button" className="btn small" onClick={async () => { await post('/api/auth/logout'); await refresh() }}>Çıkış</button>
           </div>

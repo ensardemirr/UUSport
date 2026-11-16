@@ -95,6 +95,7 @@ try {
         -Description "sevk.pro uygulamasi ($Ortam), http://127.0.0.1:$($o.ApiPort)" | Out-Null
     Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\$($o.ApiServis)" -Name Environment -Type MultiString -Value @(
         'ASPNETCORE_ENVIRONMENT=Production',
+        "Ortam__Ad=$Ortam",
         "Urls=http://127.0.0.1:$($o.ApiPort)",
         "Database__Port=$($o.PgPort)",
         "Database__Database=$($o.Veritabani)")
