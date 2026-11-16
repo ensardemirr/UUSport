@@ -80,7 +80,9 @@ try {
     finally { Unregister-ScheduledTask -TaskName 'sevkpro-kurulum-gecici' -Confirm:$false -ErrorAction SilentlyContinue }
 
     Write-Output '5/7 Windows servisleri...'
-    $profil = (Get-CimInstance Win32_UserProfile | Where-Object { $_.LocalPath -like "*\$($o.Kullanici)" } | Select-Object -First 1).LocalPath
+    # Profil klasoru adla degil SID ile bulunur (eski profil kalintisi varsa klasor adi farkli olur).
+    $sid = (Get-LocalUser -Name $o.Kullanici).SID.Value
+    $profil = (Get-CimInstance Win32_UserProfile | Where-Object { $_.SID -eq $sid } | Select-Object -First 1).LocalPath
     if (-not $profil) { throw 'Servis hesabinin profil klasoru bulunamadi.' }
     $dataDir = Join-Path $profil 'AppData\Local\UUSport\PostgreSQL\18\data'
     & "$PgBin\pg_ctl.exe" register -N $o.PgServis -U ".\$($o.Kullanici)" -P $parola -D $dataDir -S auto -w

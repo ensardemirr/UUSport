@@ -36,10 +36,10 @@ gerçek veri ve canlı veritabanına ajan dokunmaz.
 1. **DENENMEDİ:** `kur.ps1`'in yönetici gerektiren kısmı (hesap açma, LSA oturum hakları, `pg_ctl register`,
    `New-Service`, zamanlanmış görevler), `guncelle.ps1`, `kaldir.ps1`, `yedek-parolasi.ps1`. İlk gerçek
    deneme kullanıcının **prova** kurulumudur; hata çıkarsa log `C:\SevkPro\kurulum-loglari\` altındadır.
-2. ~~Paketi temiz ağaçtan yeniden üret.~~ Tamamlandı (16.11): `deployment\releases\0.2.1`, commit `6173e63`,
-   83 test yeşil. `0.2.0` klasörü hatalı, kullanılmaz.
+2. ~~Paketi temiz ağaçtan yeniden üret.~~ Tamamlandı (16.11): `deploymenteleases2. ~~Paketi temiz ağaçtan yeniden üret.~~ Tamamlandı (16.11): `deployment\releases\0.2.1`, commit `6173e63`,.2.2`,
+   83 test yeşil. `0.2.0` ve `0.2.1` klasörleri eski, kullanılmaz.
 3. Kullanıcıya verilecek komutlar (yönetici PowerShell, sırayla):
-   `cd C:\UUSport\deployment\releases\0.2.1\kurulum`
+   `cd C:\UUSport\deployment\releases\0.2.2\kurulum`
    `powershell -ExecutionPolicy Bypass -File .\kur.ps1 -Ortam prova`
    prova sorunsuzsa: `.\kaldir.ps1 -Ortam prova`, sonra `.\kur.ps1 -Ortam canli`, sonra
    `.\yedek-parolasi.ps1 -Ortam canli`.
@@ -53,7 +53,11 @@ gerçek veri ve canlı veritabanına ajan dokunmaz.
 
 - 15.11.2026 22:33, sürüm 0.2.0: `kur.ps1 -Ortam prova` adım 2'de durdu: `New-LocalUser -Description` en fazla
   48 karakter kabul ediyor. Hesap oluşmadı, kalıntı yok. Düzeltildi; **sürüm 0.2.1** paketi üretildi.
-  Komutlarda klasör artık `deployment\releases\0.2.1\kurulum`.
+- 16.11.2026, sürüm 0.2.2 (kullanıcı denemeden önce gözden geçirme): `Wait-Gorev` görevin başlamasını
+  bekliyor (başlamadan sonuç okunursa "başarısız" sanılıyordu); profil klasörü adla değil SID ile bulunuyor;
+  `kaldir.ps1` profili üç kez silmeyi deniyor ve silemezse uyarıyor. Oturum hakkı (LSA) kodu derleniyor,
+  yedek tetikleyicileri 02:00 ve Pazar 03:00 veriyor (hak verme ve görev kaydı yönetici ister, denenmedi).
+  Komutlarda klasör artık `deployment\releases\0.2.2\kurulum`.
 
 ## 4. Dikkat
 

@@ -58,8 +58,14 @@ function Test-PaketHash([string]$PaketDir) {
 }
 
 function Wait-Gorev([string]$Ad, [int]$ZamanAsimiSn = 900) {
+    $oncekiKosu = (Get-ScheduledTaskInfo -TaskName $Ad).LastRunTime
     Start-ScheduledTask -TaskName $Ad
-    Start-Sleep -Seconds 3
+    # Gorev baslamadan sonucu okunursa eski/bos sonuc "basarisiz" sanilir; once baslamasi beklenir.
+    $baslama = (Get-Date).AddSeconds(60)
+    while ((Get-ScheduledTask -TaskName $Ad).State -ne 'Running' -and (Get-ScheduledTaskInfo -TaskName $Ad).LastRunTime -eq $oncekiKosu) {
+        if ((Get-Date) -gt $baslama) { throw "Gorev baslamadi: $Ad" }
+        Start-Sleep -Seconds 1
+    }
     $bitis = (Get-Date).AddSeconds($ZamanAsimiSn)
     while ((Get-ScheduledTask -TaskName $Ad).State -eq 'Running') {
         if ((Get-Date) -gt $bitis) { throw "Gorev zaman asimina ugradi: $Ad" }
