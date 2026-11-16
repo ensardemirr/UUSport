@@ -36,10 +36,10 @@ gerçek veri ve canlı veritabanına ajan dokunmaz.
 1. **DENENMEDİ:** `kur.ps1`'in yönetici gerektiren kısmı (hesap açma, LSA oturum hakları, `pg_ctl register`,
    `New-Service`, zamanlanmış görevler), `guncelle.ps1`, `kaldir.ps1`, `yedek-parolasi.ps1`. İlk gerçek
    deneme kullanıcının **prova** kurulumudur; hata çıkarsa log `C:\SevkPro\kurulum-loglari\` altındadır.
-2. ~~Paketi temiz ağaçtan yeniden üret.~~ Tamamlandı (16.11): `deployment\releases\0.2.2`,
+2. ~~Paketi temiz ağaçtan yeniden üret.~~ Tamamlandı (16.11): `deployment\releases\0.2.3`,
    83 test yeşil. `0.2.0` ve `0.2.1` klasörleri eski, kullanılmaz.
 3. Kullanıcıya verilecek komutlar (yönetici PowerShell, sırayla):
-   `cd C:\UUSport\deployment\releases\0.2.2\kurulum`
+   `cd C:\UUSport\deployment\releases\0.2.3\kurulum`
    `powershell -ExecutionPolicy Bypass -File .\kur.ps1 -Ortam prova`
    prova sorunsuzsa: `.\kaldir.ps1 -Ortam prova`, sonra `.\kur.ps1 -Ortam canli`, sonra
    `.\yedek-parolasi.ps1 -Ortam canli`.
