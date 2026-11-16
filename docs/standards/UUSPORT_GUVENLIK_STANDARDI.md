@@ -216,6 +216,28 @@ Ofis bilgisayari F1'de internete **acilmaz** (ADR-001). Port yonlendirme yapilma
 - Riskli komutlarin (silme, tasima, SQL yazma, publish, kurulum) onay kurallari `AGENTS.md`'de
   tutulur.
 
+### 10.1 Canli ve gelistirme ayni makinedeyken (16.11.2026, ADR-019)
+
+`[KARAR]` Ilk canli, gelistirme makinesine kurulur. Ayni makinede olmak yukaridaki kurali
+gevsetmez; ayrim su sinirlarla korunur:
+
+- Canli ayri bir Windows hesabiyla (`sevkpro_canli`), ayri bir PostgreSQL kumesiyle (5433) ve
+  ayri bir kok klasorle (`C:\SevkPro\canli`) calisir. Gelistirme kumesi (5432) ile ortak rol,
+  parola veya veritabani yoktur.
+- Canlinin gizli bilgileri servis hesabina kilitlidir (DPAPI); gelistirici hesabi ve ajanlar
+  bunlari okuyamaz. Servis hesabinin parolasi rastgeledir ve hicbir yere yazilmaz.
+- Ajanlar yonetici yetkisi gerektiren kurulum, guncelleme ve kaldirma komutlarini
+  **calistirmaz**; komutu hazirlar, kullanici calistirir.
+- Ajanlar `C:\SevkPro\canli` altindaki veriye, canli veritabanina (5433) ve yedek dosyalarina
+  baglanmaz, okumaz, kopyalamaz. Hata ayiklama kullanicinin yapistirdigi cikti veya kisisel veri
+  icermeyen kurulum loguyla yapilir.
+- Prova ortami (`sevkpro_prova`, 5434) yalniz sentetik veriyle kullanilir; canli veri provaya
+  kopyalanmaz.
+- `[RISK]` Yedek su an ayni makinede durur; makine kaybi veriyi ve yedegi birlikte goturur.
+  Kullanici yedekleri elle disari alir; bulut hedefi `[ACIK]`.
+- `[RISK]` Gelistirme ve canli ayni makinede oldugu icin yonetici hesabi ele gecirilirse ikisi
+  de etkilenir. Ayri canli makine `[ACIK]` (ADR-019 acik konular).
+
 ---
 
 ## 11. Surum guvenlik tabani (O86)

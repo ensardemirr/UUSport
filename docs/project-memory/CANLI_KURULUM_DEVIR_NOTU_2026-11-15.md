@@ -36,14 +36,15 @@ gerçek veri ve canlı veritabanına ajan dokunmaz.
 1. **DENENMEDİ:** `kur.ps1`'in yönetici gerektiren kısmı (hesap açma, LSA oturum hakları, `pg_ctl register`,
    `New-Service`, zamanlanmış görevler), `guncelle.ps1`, `kaldir.ps1`, `yedek-parolasi.ps1`. İlk gerçek
    deneme kullanıcının **prova** kurulumudur; hata çıkarsa log `C:\SevkPro\kurulum-loglari\` altındadır.
-2. Paketi temiz ağaçtan yeniden üret: `scripts/release.ps1` (15.11'deki paket commit öncesi üretildi ve silindi).
+2. ~~Paketi temiz ağaçtan yeniden üret.~~ Tamamlandı (16.11): `deployment\releases\0.2.1`, commit `6173e63`,
+   83 test yeşil. `0.2.0` klasörü hatalı, kullanılmaz.
 3. Kullanıcıya verilecek komutlar (yönetici PowerShell, sırayla):
-   `cd C:\UUSport\deployment\releases\0.2.0\kurulum`
+   `cd C:\UUSport\deployment\releases\0.2.1\kurulum`
    `powershell -ExecutionPolicy Bypass -File .\kur.ps1 -Ortam prova`
    prova sorunsuzsa: `.\kaldir.ps1 -Ortam prova`, sonra `.\kur.ps1 -Ortam canli`, sonra
    `.\yedek-parolasi.ps1 -Ortam canli`.
-4. Belgeler: operasyon prosedürü bölüm 4 ve 6.1 (aynı makinede canlı, release.ps1 ve kurulum betikleri),
-   güvenlik standardı bölüm 10, ana hafıza bölüm 5 ve 11.
+4. ~~Belgeler.~~ Tamamlandı (16.11): operasyon prosedürü 4.1A ve 6.1, güvenlik standardı 10.1,
+   ana hafıza 5.8, 11 ve değişiklik geçmişi (sürüm 3.12).
 5. Adım 8 (HTTPS): canlı şimdilik yalnız `127.0.0.1:5090` (bu makinede RDP içinden). Başka bilgisayardan
    erişim için kullanıcı GoDaddy'de alt alan adı kaydı açmalı; sertifika ve 443 ayrı iş.
 6. Adım 10 (M2) ve Aşama 3 tasarım oturumları (ADR-019 bölüm 5).

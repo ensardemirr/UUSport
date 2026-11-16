@@ -1,10 +1,10 @@
 # UU Sport Ana Hafiza
 
-**Surum:** 3.11  
+**Surum:** 3.12  
 **Olusturma tarihi:** 23 Eylul 2026  
-**Son guncelleme:** 15 Kasim 2026  
+**Son guncelleme:** 16 Kasim 2026  
 **Ilk yazar:** Codex  
-**Durum:** Surum 0.1 gelistirme ortaminda calisiyor; M0 tamamlandi, M1 buyuk olcude tamamlandi (kalanlar bolum 11). Siradaki: M1 kalanlari, **M1.5 coklu sirket (ADR-012, onayli)** ve M2. Canli kurulum yok.
+**Durum:** Surum 0.1 gelistirme ortaminda calisiyor; M0 tamamlandi, M1 buyuk olcude tamamlandi (kalanlar bolum 11). Siradaki: M1 kalanlari, **M1.5 coklu sirket (ADR-012, onayli)** ve M2. Surum paketi 0.2.1 hazir; canli kurulum henuz yok (bolum 5.8).
 
 Bu dosya UU Sport / PSG Academy Samsun projesinin tek guncel proje hafizasidir.
 Claude Code ve Codex her calismanin basinda bu dosyayi okur. Dosya parola, API
@@ -555,6 +555,34 @@ denenmeden guvenilir sayilmaz (operasyon proseduru Kapi C/D ile uyumlu).
 - Web arayuzunde `oxlint` uslup uyarilari var (form sifirlama efektleri); islevi etkilemez.
 - Tek kiracili ilk surum: kurulum ilk kiraciyi kullanir; coklu kiraci yonetimi yok.
 
+16.11.2026 guncellemesi: yukaridaki "canli paket yok" maddesi gecersiz; bkz. 5.8.
+
+### 5.8 Surum paketi ve bu makinede canli kurulum duzeni (16.11.2026)
+
+- `[DOGRU]` `scripts/release.ps1` temiz agactan paket uretir: `deployment/releases/<surum>/`
+  (`app`, `kurulum`, `manifest.json`, `checksums.sha256`). Var olan surum klasorunun ustune
+  yazmaz. Guncel paket **0.2.1** (commit `6173e63`, 83 test yesil). `0.2.0` hatalidir, kullanilmaz.
+- `[DOGRU]` API Windows servisi olarak calisabilir (`Microsoft.Extensions.Hosting.WindowsServices`).
+- `[KARAR]` Ortam duzeni (ayni makinede, birbirinden ayri):
+
+  | Ortam | Windows hesabi | PostgreSQL portu | API adresi | Kok klasor |
+  |---|---|---:|---|---|
+  | Gelistirme | `Ensaradmin` | 5432 | 5080 / 5081 | `C:\UUSport` |
+  | Canli | `sevkpro_canli` | 5433 | `127.0.0.1:5090` | `C:\SevkPro\canli` |
+  | Prova | `sevkpro_prova` | 5434 | `127.0.0.1:5091` | `C:\SevkPro\prova` |
+
+- Kurulum betikleri `scripts/canli/` altindadir (`kur`, `kur-ic`, `migrate`, `yedek-al`,
+  `yedek-parolasi`, `guncelle`, `kaldir`). Gizli bilgiler servis hesabina kilitlidir (DPAPI);
+  servis hesabinin parolasi rastgeledir ve hicbir yere yazilmaz.
+- Zamanlanmis gorevler: yedek her gun 02:00, geri yukleme provasi Pazar 03:00.
+- `[DOGRU]` Yonetici gerektirmeyen kisim denendi (kume kurulumu, migration, uygulama acilisi,
+  yedek + geri yukleme). `[ACIK]` Yonetici gerektiren kisim (hesap, oturum haklari, servis kaydi,
+  zamanlanmis gorevler), `guncelle`, `kaldir`, `yedek-parolasi` henuz **denenmedi**; ilk deneme
+  kullanicinin prova kurulumudur. **Canli kurulum henuz yok.**
+- Ajanlar yonetici komutu calistirmaz; `C:\SevkPro\canli` verisine, canli veritabanina ve
+  yedeklere dokunmaz (guvenlik standardi bolum 10).
+- Ayrinti ve kalan isler: `docs/project-memory/CANLI_KURULUM_DEVIR_NOTU_2026-11-15.md`.
+
 ### 5.4 Git durumu
 
 - Git deposu olusturuldu; ana dal `master`.
@@ -746,6 +774,17 @@ Ayrintili standart:
    makinede prova.
 10. Canli ortam belli oldugunda ortam envanteri, kurulum ve release planini doldur.
 
+16.11.2026 guncel sira (ADR-019 bolum 5; yukaridaki 9. madde paket kismiyla tamamlandi):
+
+1. Kullanici: `0.2.1` paketiyle **prova** kurulumu (yonetici PowerShell). Hata cikarsa duzeltilir.
+2. Kullanici: prova kaldirilir, **canli** kurulur, yedek parolasi belirlenir (ilk yedek + geri
+   yukleme provasi otomatik calisir).
+3. Disaridan erisim (ADR-019 adim 8): kullanici GoDaddy'de sevk.pro alt alan adi kaydi acar;
+   sertifika ve 443 ayri is. O zamana kadar canli yalniz bu makinede `127.0.0.1:5090`.
+4. M2 (S-20..S-27), sonra ADR-019 Asama 3 tasarim oturumlari.
+5. Kullanici isleri: Windows lisansi (deneme surumu ~5 Subat 2027'de biter), yedeklerin
+   makine disina alinmasi, mali musavir ve avukat sorulari.
+
 ## 12. Claude Code ve Codex Ortak Calisma Protokolu
 
 - Calismaya baslamadan `AGENTS.md`, `CLAUDE.md` ve bu ana hafizayi oku.
@@ -771,6 +810,7 @@ Ayrintili standart:
 
 | Tarih | Surum | Yazan | Degisiklik |
 |---|---:|---|---|
+| 16.11.2026 | 3.12 | Claude Code | `[KULLANICI KARARI]` Ilk canli bu makineye kurulur; lisansi kullanici halleder. Uygulandi: API Windows servisi destegi, `scripts/release.ps1` (surum paketi, S-18), `scripts/canli/` kurulum betikleri (ayri hesap, ayri PostgreSQL kumesi 5433/5434, DPAPI, zamanlanmis yedek ve geri yukleme provasi), `backup.ps1`/`restore-test.ps1` icin `-Port`. Paket `0.2.1` uretildi (83 test yesil). Kullanicinin ilk prova denemesi `New-LocalUser` aciklamasinin 48 karakter siniri yuzunden durdu, duzeltildi. Yonetici gerektiren kisim henuz denenmedi; **canli kurulum yok**. Bolum 5.8 eklendi, bolum 11 guncellendi; operasyon proseduru 4.1A/6.1 ve guvenlik standardi bolum 10 guncellendi. |
 | 15.11.2026 | 3.11 | Claude Code | `[KULLANICI KARARI]` Tasarim oturumu: UU Sport ve sevk.pro birlestirildi, **ADR-019** yazildi (proje adi sevk.pro, arka uc C#, tek depo + ortak cekirdek, kiraci = tuzel kisi + grup katmani, tek kurulum ve ic yonetim paneli, destek goruntuleme, dagitim firmasi dorduncu sirket, tek dogruluk kaynagi repo, 37 adimlik liste). Kasim canli tarihi birakildi; alan adi sevk.pro alt alan adi; yedek simdilik ayni makinede; git yetkisi verildi. `C:\Sevk.Pro` git'e alindi ve `CLAUDE.md`'si guncellendi. Calisma dali `master`'a birlestirildi. Kod degisikligi yok. |
 | 19.10.2026 | 3.10 | Claude Code | Canliya alma ve RDP konusmasi kaydedildi (bolum 0): RDP konfigurasyon onerisi, alan adi zorunlulugu, Linux secenegi, 8 GB'lik hedefte sanal makinenin yetersizligi, canli oncesi is listesi ve canli makinede gereken programlar `[ONERI]`; kullanici kararlari `[ACIK]`. Fiyat arastirmasi yapilmadi. |
 | 18.10.2026 | 3.9 | Claude Code | `[KULLANICI KARARI]` Nakit akisina aylik tahsilat/gider, kredi karti, vergi/KDV, maas, SGK, kira eklenmesi istendi. Uygulandi: migration `M4PlannedCashItems` + `M4PlannedCashItemsSecurity` (`finance.planned_cash_item`, RLS v2; `finance.cash_account.payment_due_day`). Sirket basina kalici **planli kalemler** (maas, SGK, muhtasar, kira, gecici vergi, KDV, diger gider, beklenen tahsilat; gun + tekrar araligi) `GET/POST/PUT /api/planned-cash-items`; tahmin bunlari, kart borcunu son odeme gununde ve **KDV'yi gecen ay ve bu ayin faturalarindan** (satis KDV - alis KDV, devreden mahsup, izleyen ayin 28'i) kullanir. `[ONERI]` KDV ve odeme gunleri varsayimi mali musavirle teyit edilmeli. Deneme ortami: `tools/demo/reset-demo.ps1` (`uusport_ui`, 5081) uc sirketli sentetik veri, gecmis 3 ay satis/alis/fatura/tahsilat, kredi, kart, cek ve **grup ici fatura + para transferi** (karsilikli elle girilir; ADR-012 2.5 onay kuyrugu ve `intercompany_link` henuz yok). Not: `.claude/hooks/koruma.ps1` Migrations klasorunde yeni uretilen dosyanin duzenlenmesini de engelliyor; RLS bu yuzden ayri migration ile eklendi. 83 test yesil. |
