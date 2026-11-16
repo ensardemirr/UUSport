@@ -51,7 +51,7 @@ try {
     $parola = New-RastgeleParola 40
     $guvenli = ConvertTo-SecureString $parola -AsPlainText -Force
     New-LocalUser -Name $o.Kullanici -Password $guvenli -PasswordNeverExpires -UserMayNotChangePassword `
-        -Description "sevk.pro $Ortam servis hesabi (etkilesimli oturum icin degildir)" | Out-Null
+        -Description "sevk.pro $Ortam servis hesabi" | Out-Null   # aciklama en fazla 48 karakter olabilir
     $kullanicilarGrubu = (New-Object Security.Principal.SecurityIdentifier('S-1-5-32-545')).Translate([Security.Principal.NTAccount]).Value.Split('\')[-1]
     Add-LocalGroupMember -Group $kullanicilarGrubu -Member $o.Kullanici
     Grant-OturumHakki "$env:COMPUTERNAME\$($o.Kullanici)" @('SeServiceLogonRight', 'SeBatchLogonRight')

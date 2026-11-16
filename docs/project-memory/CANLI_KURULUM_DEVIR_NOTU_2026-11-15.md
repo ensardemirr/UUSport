@@ -48,6 +48,12 @@ gerçek veri ve canlı veritabanına ajan dokunmaz.
    erişim için kullanıcı GoDaddy'de alt alan adı kaydı açmalı; sertifika ve 443 ayrı iş.
 6. Adım 10 (M2) ve Aşama 3 tasarım oturumları (ADR-019 bölüm 5).
 
+## 3.1 Kullanıcının prova denemeleri
+
+- 15.11.2026 22:33, sürüm 0.2.0: `kur.ps1 -Ortam prova` adım 2'de durdu: `New-LocalUser -Description` en fazla
+  48 karakter kabul ediyor. Hesap oluşmadı, kalıntı yok. Düzeltildi; **sürüm 0.2.1** paketi üretildi.
+  Komutlarda klasör artık `deployment\releases\0.2.1\kurulum`.
+
 ## 4. Dikkat
 
 - `[RISK]` Servis hesabının parolası yönetici tarafından sıfırlanırsa o hesaba kilitli gizli bilgiler
